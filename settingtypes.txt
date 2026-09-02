@@ -1,0 +1,5 @@
+offhand_screen_icon_scale (Offhand icon scale) float 2.2
+offhand_screen_bg_padding (Extra padding for the icon's background slot) float 0.6
+offhand_screen_offset_x (Offhand icon X offset in pixels, relative to hotbar center) int 130
+offhand_screen_offset_y (Offhand icon Y offset in pixels, relative to screen bottom) int -110
+offhand_screen_show_background (Show a dark slot background behind the offhand icon) bool true
