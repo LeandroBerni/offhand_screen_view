@@ -130,6 +130,29 @@ function minetest.after(_, f) after_cb = f end
 
 local players = {}
 function minetest.get_connected_players() return players end
+function minetest.get_player_by_name(name)
+    for _, p in ipairs(players) do
+        if p.pname == name and not p.left then return p end
+    end
+    return nil
+end
+
+-- ==== fake mod channel (client companion reports camera modes) =====
+local joined_channels = {}
+local modchannel_cb
+function minetest.mod_channel_join(name)
+    table.insert(joined_channels, name)
+    return {
+        is_writable = function() return true end,
+        send_message = function() end,
+        leave = function() end,
+    }
+end
+function minetest.register_on_modchannel_message(f) modchannel_cb = f end
+-- simulate the client-side companion mod reporting a camera mode
+local function report(sender, mode)
+    modchannel_cb("offhand_screen_view", sender, "FP " .. tostring(mode))
+end
 
 -- ==== fake offhand mod =============================================
 local item_change_cb
@@ -363,6 +386,60 @@ offhand.stacks.tester = ItemStack("default:stone", 1)
 offhand_screen_view.update(player)
 eq(player:count_huds(), 0, "no icon is drawn when show_icon is off")
 overrides["offhand_screen_show_icon"] = nil
+offhand_screen_view = nil
+load_mod()
+
+-- ==== first person only, driven by the client companion mod =======
+offhand.stacks.tester = ItemStack("default:stone", 1)
+offhand_screen_view.update(player)
+eq(player:count_huds(), 3, "icon is visible before any camera report arrives")
+ok(#joined_channels >= 1 and joined_channels[#joined_channels] == "offhand_screen_view",
+    "the server joins the offhand_screen_view mod channel")
+
+report("tester", 1) -- client switches to third person (back)
+eq(player:count_huds(), 0, "HUD is torn down when third person is reported")
+
+item_change_cb(player, ItemStack("default:stone"), ItemStack("default:apple"))
+eq(player:count_huds(), 0, "changing the offhand while hidden stays hidden")
+
+report("tester", 2) -- third person (front) is hidden too
+eq(player:count_huds(), 0, "third-person-front keeps the HUD hidden")
+
+report("tester", 0) -- back to first person
+eq(player:count_huds(), 3, "the icon returns when first person is reported")
+
+modchannel_cb("some_other_channel", "tester", "FP 1")
+eq(player:count_huds(), 3, "messages on other channels are ignored")
+modchannel_cb("offhand_screen_view", "", "FP 1")
+eq(player:count_huds(), 3, "server-sent messages (empty sender) are ignored")
+modchannel_cb("offhand_screen_view", "tester", "FP 9")
+eq(player:count_huds(), 3, "out-of-range camera modes are ignored")
+modchannel_cb("offhand_screen_view", "tester", "hello")
+eq(player:count_huds(), 3, "malformed messages are ignored")
+
+-- leaving the game forgets the reported mode
+for id in pairs(other.huds) do other.huds[id] = nil end -- leftovers from before the module reloads
+offhand_screen_view.update(other)
+eq(other:count_huds(), 4, "second player draws icon + counter")
+report("other", 1)
+eq(other:count_huds(), 0, "third person hides a second player's icon as well")
+on_leaveplayer(other)
+other.left = true
+for id in pairs(other.huds) do other.huds[id] = nil end
+report("other", 0) -- stale report for somebody who is gone: must not crash
+eq(other:count_huds(), 0, "no HUD is created for players who left")
+other.left = nil
+
+-- the whole feature can be switched off
+overrides["offhand_screen_first_person_only"] = false
+offhand_screen_view = nil
+for id in pairs(player.huds) do player.huds[id] = nil end -- engine keeps HUDs across reloads; the fake does not
+local joins_before = #joined_channels
+load_mod()
+eq(#joined_channels, joins_before, "no channel is joined when first_person_only is off")
+offhand_screen_view.update(player)
+eq(player:count_huds(), 3, "icon stays visible with first_person_only = false")
+overrides["offhand_screen_first_person_only"] = nil
 offhand_screen_view = nil
 load_mod()
 

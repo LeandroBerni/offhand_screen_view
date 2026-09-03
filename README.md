@@ -1,8 +1,10 @@
 # Offhand Screen View
 
 Complemento para el mod **offhand** (fork de SFENCE / t-affeldt de `mcl_offhand`).
-Muestra el item de la mano secundaria en pantalla, al estilo Minecraft, y se ve
-**tanto en primera como en tercera persona**.
+Muestra el item de la mano secundaria en pantalla, al estilo Minecraft,
+**solo en primera persona**: al pasar a segunda/tercera persona el HUD se
+oculta automáticamente (con el mod cliente incluido; ver más abajo) y en
+tercera persona queda solo el item 3D del mod base en el brazo.
 
 ## El problema original
 
@@ -27,6 +29,14 @@ mientras que en la mano principal el motor extruye un objeto 3D.
 4. Opcionalmente **esconde el icono del mod base** junto al hotbar
    (`offhand_screen_hide_base_icon`, apagado por defecto: los dos quedan
    visibles).
+5. **Solo primera persona, automático.** El servidor no puede saber en qué
+   cámara estás (`player:get_camera()` solo devuelve restricciones que pone el
+   propio servidor), así que este repo trae un **mod cliente**
+   (`clientmods/offhand_screen_view`) que lee `core.camera:get_camera_mode()`
+   y le avisa al servidor por un *mod channel* (`"FP 0/1/2"`). Cuando el modo
+   no es primera persona, el servidor elimina todos los elementos HUD del
+   jugador; al volver a primera persona los recrea. Sin el mod cliente el
+   icono se ve siempre (comportamiento anterior).
 
 ## Por qué no es un objeto 3D de verdad en primera persona
 
@@ -38,10 +48,28 @@ mientras que en la mano principal el motor extruye un objeto 3D.
   aplica la transformación del hueso al jugador local: queda flotando a los
   pies. Por eso se usa un elemento de HUD anclado a la pantalla, que es lo
   único que puede quedar "a la altura de la mano".
-- En **segunda/tercera persona** el mod base ya muestra el item 3D en el brazo;
-  el icono de este mod también se ve ahí (el servidor no puede saber en qué
-  cámara estás). Si te molesta, poné `offhand_screen_show_icon = false` y
-  quedás solo con el comportamiento del mod base.
+- En **segunda/tercera persona** el mod base ya muestra el item 3D en el
+  brazo, y el icono de este mod se oculta automáticamente gracias al mod
+  cliente (instalación abajo).
+
+## Ocultado automático: instalar el mod cliente
+
+El servidor no tiene ninguna API para saber si estás en primera o tercera
+persona; solo el cliente lo sabe. Por eso el ocultado automático necesita el
+mod cliente que viene en `clientmods/`:
+
+1. Copiá la carpeta `clientmods/offhand_screen_view` a la carpeta
+   `clientmods` del juego (en Windows:
+   `C:\Users\<tu_usuario>\AppData\minetest\clientmods\offhand_screen_view\`).
+2. En `minetest.conf` agregá: `enable_client_modding = true`
+3. En `AppData\minetest\clientmods\mods.conf` agregá:
+   `load_mod_offhand_screen_view = true`
+4. Del lado del servidor (o en el mismo `minetest.conf` en singleplayer):
+   `enable_mod_channels = true`
+
+Si no lo instalás, todo sigue funcionando igual pero el icono se ve en todas
+las vistas. También podés desactivar el ocultado con
+`offhand_screen_first_person_only = false`.
 
 ## Ajustes
 
@@ -52,6 +80,7 @@ mientras que en la mano principal el motor extruye un objeto 3D.
 | `offhand_screen_pos_x` | `0.12` | Posición X, fracción del ancho (0..1). |
 | `offhand_screen_pos_y` | `0.88` | Posición Y, fracción del alto (0..1). |
 | `offhand_screen_show_icon` | `true` | Mostrar el icono de este mod. |
+| `offhand_screen_first_person_only` | `true` | Ocultar el HUD fuera de primera persona (requiere el mod cliente). |
 | `offhand_screen_show_background` | `false` | Fondo oscuro tipo ranura. |
 | `offhand_screen_show_count` | `true` | Cantidad del stack en la esquina. |
 | `offhand_screen_3d_icons` | `true` | Bloques como cubos 3D (si no, plano). |

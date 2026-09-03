@@ -1,8 +1,10 @@
 -- offhand_screen_view
 --
 -- Add-on for the "offhand" mod (SFENCE / t-affeldt fork of mcl_offhand).
--- Shows the item currently held in the offhand as an on-screen element,
--- drawn in BOTH first and third person.
+-- Shows the item currently held in the offhand as an on-screen element.
+-- With the bundled client-side companion mod (clientmods/) installed the icon
+-- is shown ONLY in first person and disappears automatically in 2nd/3rd
+-- person; without it the icon is drawn in both views.
 --
 -- WHAT THIS MOD DOES
 -- * Renders the item through the [inventorycube texture modifier (the same
@@ -67,6 +69,7 @@ local use_spin    = get_bool("offhand_screen_spin", true)
 local spin_period = math.max(0.4, get_number("offhand_screen_spin_period", 1.6))
 local use_shadow  = get_bool("offhand_screen_shadow", true)
 local use_bob     = get_bool("offhand_screen_bob", true)
+local first_person_only = get_bool("offhand_screen_first_person_only", true)
 
 if icon_px < 8 then icon_px = 8 end
 if bg_pad < 0 then bg_pad = 0 end
@@ -76,6 +79,20 @@ local huds = {}
 -- [player_name] = { icon=id, bg=id, shadow=id, count=id,
 --                   itemname="", count_n=0, frames={}, frame_i=1,
 --                   bob_x=0, bob_y=0 }
+
+-- camera mode per player, reported by the optional client-side companion mod
+-- over the "offhand_screen_view" mod channel: 0 = first person, 1/2 = third
+-- person (back/front). nil while unknown (client mod absent or not joined).
+local cam_modes = {}
+
+local function is_first_person(pname)
+    if not first_person_only then
+        return true
+    end
+    local mode = cam_modes[pname]
+    -- without the client mod we cannot tell the view: keep the old behaviour
+    return mode == nil or mode == 0
+end
 
 local function get_tile_name(tiledef)
     if type(tiledef) == "table" then
@@ -273,6 +290,15 @@ function offhand_screen_view.update(player)
         return
     end
 
+    -- first-person-only mode: the companion client mod (see the bottom of
+    -- this file) reports the camera mode over a mod channel; while the view
+    -- is 2nd/3rd person the whole HUD is torn down. With no report from the
+    -- client the icon stays visible, like the old behaviour.
+    if not is_first_person(pname) then
+        remove_huds(player)
+        return
+    end
+
     local ok, stack = pcall(offhand.get_offhand, player)
     if not ok or not stack then
         remove_huds(player)
@@ -368,6 +394,7 @@ end
 
 minetest.register_on_joinplayer(function(player)
     huds[player:get_player_name()] = nil
+    cam_modes[player:get_player_name()] = nil
     -- small delay so the "offhand" mod has finished setting up the
     -- player's inventory list before we read it
     minetest.after(0.5, function()
@@ -380,6 +407,7 @@ end)
 
 minetest.register_on_leaveplayer(function(player)
     huds[player:get_player_name()] = nil
+    cam_modes[player:get_player_name()] = nil
 end)
 
 -- react instantly whenever the offhand mod swaps/uses items
@@ -424,3 +452,40 @@ minetest.register_globalstep(function(dtime)
         end
     end
 end)
+
+-- ---------------------------------------------------------------------------
+-- Camera-mode reports from the optional client-side companion mod
+--
+-- The server has no API for the camera mode the client is currently in
+-- (player:get_camera() only returns server-imposed restrictions), so the
+-- companion mod in clientmods/offhand_screen_view/init.lua sends
+-- "FP <mode>" (0 = first person, 1/2 = third person) over the
+-- "offhand_screen_view" mod channel whenever the view changes.
+--
+-- For the auto-hiding to work:
+--   client minetest.conf:  enable_client_modding = true
+--                          and the client mod enabled in
+--                          <minetest>/clientmods/mods.conf
+--   server minetest.conf:  enable_mod_channels = true
+--
+-- If no client mod is installed, no messages arrive and the icon is simply
+-- always visible (the pre-companion behaviour).
+-- ---------------------------------------------------------------------------
+local CHANNEL_NAME = "offhand_screen_view"
+
+if first_person_only and minetest.mod_channel_join
+        and minetest.register_on_modchannel_message then
+    minetest.mod_channel_join(CHANNEL_NAME)
+
+    minetest.register_on_modchannel_message(function(channel_name, sender, message)
+        if channel_name ~= CHANNEL_NAME or sender == "" then return end
+        local mode = tonumber(tostring(message):match("^FP (%d+)$"))
+        if mode == nil or mode < 0 or mode > 2 then return end
+        if cam_modes[sender] == mode then return end
+        cam_modes[sender] = mode
+        local player = minetest.get_player_by_name(sender)
+        if player then
+            offhand_screen_view.update(player)
+        end
+    end)
+end
