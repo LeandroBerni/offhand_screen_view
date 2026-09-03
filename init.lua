@@ -36,10 +36,10 @@
 
 offhand_screen_view = {}
 
-if not offhand then
-    minetest.log("error", "[offhand_screen_view] 'offhand' mod not found, disabling.")
-    return
-end
+-- The base "offhand" mod is optional: if it is present we use its API, and if
+-- it is missing (or loads after us) we read the "offhand" inventory list
+-- directly, so this mod never hard-fails at startup.
+local offhand_api = nil
 
 -- ==== settings (also see settingtypes.txt) ====================
 local function get_number(name, default)
@@ -130,6 +130,23 @@ end
 
 local function silhouette(tex)
     return tex .. "^[multiply:#000000^[opacity:90"
+end
+
+-- Returns the stack held in the offhand: via the base mod's API when it is
+-- available, otherwise straight from the "offhand" inventory list (which the
+-- base mod creates; size 0 if nobody created it).
+local function get_offhand_stack(player)
+    if offhand_api then
+        local ok, stack = pcall(offhand_api.get_offhand, player)
+        if ok and stack then
+            return stack
+        end
+    end
+    local inv = player.get_inventory and player:get_inventory()
+    if inv and inv.get_size and inv:get_size("offhand") > 0 then
+        return inv:get_stack("offhand", 1)
+    end
+    return nil
 end
 
 -- Builds the animation frames of the HUD icon. Cubic nodes get the four
@@ -261,7 +278,7 @@ end
 -- so we just park every element far off-screen. Disabled by default.
 function offhand_screen_view.hide_base_hud(player)
     if not hide_base then return end
-    local data = offhand[player]
+    local data = offhand_api and offhand_api[player]
     if type(data) ~= "table" or type(data.hud) ~= "table" then return end
     for _, id in pairs(data.hud) do
         if type(id) == "number" then
@@ -299,8 +316,8 @@ function offhand_screen_view.update(player)
         return
     end
 
-    local ok, stack = pcall(offhand.get_offhand, player)
-    if not ok or not stack then
+    local stack = get_offhand_stack(player)
+    if not stack then
         remove_huds(player)
         return
     end
@@ -410,11 +427,50 @@ minetest.register_on_leaveplayer(function(player)
     cam_modes[player:get_player_name()] = nil
 end)
 
--- react instantly whenever the offhand mod swaps/uses items
-offhand.register_on_item_change(function(player, item_before, item_after)
-    offhand_screen_view.update(player)
-    offhand_screen_view.hide_base_hud(player)
-end)
+-- react instantly whenever the offhand mod swaps/uses items; the base mod may
+-- not be loaded yet (it can come after us), so this is wired up in bind()
+local function bind(api)
+    offhand_api = api
+    if type(api.register_on_item_change) == "function" then
+        api.register_on_item_change(function(player, item_before, item_after)
+            offhand_screen_view.update(player)
+            offhand_screen_view.hide_base_hud(player)
+        end)
+    end
+end
+
+-- duck-type the base mod: t-affeldt / SFENCE expose `offhand`, MCL2 exposes
+-- `mcl_offhand`; both provide get_offhand()
+local function find_offhand()
+    for _, name in ipairs({"offhand", "mcl_offhand"}) do
+        local candidate = _G[name]
+        if type(candidate) == "table"
+                and type(candidate.get_offhand) == "function" then
+            return candidate
+        end
+    end
+    return nil
+end
+
+local function try_bind(deferred)
+    local api = find_offhand()
+    if api then
+        bind(api)
+        return true
+    end
+    if deferred then
+        minetest.log("warning", "[offhand_screen_view] base 'offhand' mod not "
+            .. "detected; reading the 'offhand' inventory list directly. The "
+            .. "icon appears as soon as that list holds an item.")
+    end
+    return false
+end
+
+if not try_bind(false) and minetest.register_on_mods_loaded then
+    minetest.register_on_mods_loaded(function()
+        try_bind(true)
+    end)
+end
 
 -- safety net + animations:
 -- * every 0.5 s the icon is resynced with the "offhand" inventory list, in

@@ -122,11 +122,12 @@ minetest.inventorycube = function(top, left, right)
         "{" .. (right:gsub("%^", "&"))
 end
 
-local on_joinplayer, on_leaveplayer, on_globalstep, after_cb
+local on_joinplayer, on_leaveplayer, on_globalstep, after_cb, mods_loaded_cb
 function minetest.register_on_joinplayer(f) on_joinplayer = f end
 function minetest.register_on_leaveplayer(f) on_leaveplayer = f end
 function minetest.register_globalstep(f) on_globalstep = f end
 function minetest.after(_, f) after_cb = f end
+function minetest.register_on_mods_loaded(f) mods_loaded_cb = f end
 
 local players = {}
 function minetest.get_connected_players() return players end
@@ -186,6 +187,13 @@ local function new_player(name)
     function p:get_player_name() return self.pname end
     function p:is_player() return true end
     function p:get_player_velocity() return self.velocity end
+    p.inv = {
+        sizes = {},
+        stacks = {},
+        get_size = function(self, list) return self.sizes[list] or 0 end,
+        get_stack = function(self, list) return self.stacks[list] or ItemStack("") end,
+    }
+    function p:get_inventory() return self.inv end
     function p:hud_add(def)
         assert(def.hud_elem_type or def.type, "hud_add without element type")
         local id = self.next_id
@@ -468,6 +476,35 @@ load_mod()
 eq(offhand_screen_view.build_icon("default:stone"),
     "[inventorycube{default_stone.png{default_stone.png{default_stone.png^[resize:380x380",
     "icons default to 380 px")
+
+-- ==== fallback when the base offhand mod is absent ================
+-- (this used to kill the whole mod with an error at startup)
+offhand = nil
+offhand_screen_view = nil
+load_mod()
+
+local solo = new_player("solo")
+solo.inv.sizes.offhand = 1
+solo.inv.stacks.offhand = ItemStack("default:stone", 2)
+offhand_screen_view.update(solo)
+eq(solo:count_huds(), 4, "the icon is drawn straight from the 'offhand' inventory list")
+
+-- if the base mod shows up only after all mods are loaded, bind late
+offhand = {
+    stacks = {},
+    get_offhand = function(p)
+        return offhand.stacks[p:get_player_name()] or ItemStack("")
+    end,
+    register_on_item_change = function(f) item_change_cb = f end,
+}
+local cb_before = item_change_cb
+if mods_loaded_cb then mods_loaded_cb() end
+ok(item_change_cb ~= cb_before, "the base mod is bound when it appears at mods_loaded")
+offhand.stacks.solo = ItemStack("default:apple", 1)
+item_change_cb(solo, ItemStack(""), ItemStack("default:apple"))
+local solo_icon = solo:find_hud("offhand_screen_view_icon")
+eq(solo_icon and solo.huds[solo_icon].text or nil, "default_apple.png^[resize:380x380",
+    "item changes flow through the late-bound callback")
 
 -- leave the module in its default configuration
 offhand_screen_view = nil

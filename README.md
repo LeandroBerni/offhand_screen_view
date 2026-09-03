@@ -1,6 +1,9 @@
 # Offhand Screen View
 
 Complemento para el mod **offhand** (fork de SFENCE / t-affeldt de `mcl_offhand`).
+Si el mod base no está (o carga después), este mod lee la lista de inventario
+`offhand` directamente y no se desactiva: ya no tira el error
+*'offhand' mod not found, disabling*.
 Muestra el item de la mano secundaria en pantalla, al estilo Minecraft,
 **solo en primera persona**: al pasar a segunda/tercera persona el HUD se
 oculta automáticamente (con el mod cliente incluido; ver más abajo) y en
