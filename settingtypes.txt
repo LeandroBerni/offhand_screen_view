@@ -1,15 +1,19 @@
 # Size of the offhand icon in HUD pixels (independent of the texture pack
 # resolution; icons are normalised to this size before being drawn).
-offhand_screen_icon_size (Offhand icon size in pixels) int 64 8 512
+offhand_screen_icon_size (Offhand icon size in pixels) int 96 8 512
 
 # Pixels of dark slot background around the icon.
 offhand_screen_bg_padding (Background padding around the icon) int 6 0 64
 
 # Position, relative to the bottom centre of the screen (like the hotbar).
-offhand_screen_offset_x (Offhand icon X offset in pixels, relative to hotbar center) int 130
-offhand_screen_offset_y (Offhand icon Y offset in pixels, relative to screen bottom) int -110
+# Defaults put the icon in the lower-left corner, at hand height.
+offhand_screen_offset_x (Offhand icon X offset in pixels, relative to screen center) int -300
+offhand_screen_offset_y (Offhand icon Y offset in pixels, relative to screen bottom) int -150
 
-offhand_screen_show_background (Show a dark slot background behind the offhand icon) bool true
+# Show this mod's on-screen icon at all.
+offhand_screen_show_icon (Show the on-screen offhand icon) bool true
+
+offhand_screen_show_background (Show a dark slot background behind the offhand icon) bool false
 
 # Show the stack size in the corner of the icon, like Minecraft does.
 offhand_screen_show_count (Show the stack size on the icon) bool true
@@ -18,7 +22,6 @@ offhand_screen_show_count (Show the stack size on the icon) bool true
 # hotbar) instead of using the flat top texture.
 offhand_screen_3d_icons (Render blocks as 3D cubes) bool true
 
-# Also make the real 3D item that the "offhand" mod attaches to your left arm
-# render in first person (the engine hides attached objects there by default).
-# It follows your arm, so it is only inside the view when you look down.
-offhand_screen_force_first_person (Also show the 3D item in first person) bool true
+# The base "offhand" mod also draws its own small icon next to the hotbar.
+# Enable this to hide it so the item is not shown twice.
+offhand_screen_hide_base_icon (Hide the base offhand mod's icon next to the hotbar) bool true

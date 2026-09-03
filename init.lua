@@ -1,28 +1,29 @@
 -- offhand_screen_view
 --
 -- Add-on for the "offhand" mod (SFENCE / t-affeldt fork of mcl_offhand).
--- Shows the item currently held in the offhand slot as an on-screen icon,
--- similar to Minecraft's off-hand indicator.
+-- Shows the item currently held in the offhand as an on-screen icon,
+-- similar to Minecraft's off-hand indicator, drawn in BOTH first and
+-- third person.
 --
--- WHY A HUD ICON AND NOT A REAL SECOND 3D HAND?
--- * The engine renders exactly ONE first-person wield model (the main hand).
---   A second one is still an open engine feature request
---   (luanti-org/luanti#10345 "Add Second Hand"), so no mod can add it.
--- * A HUD element, on the other hand, IS drawn in both first and third person.
+-- WHAT THIS MOD DOES
+-- * Renders the icon through the [inventorycube texture modifier (the same
+--   software 3D renderer the engine uses for the hotbar cubes), so blocks
+--   look like shaded cubes instead of a flat tile, and tools use their
+--   wield_image.
+-- * Places it at hand height in the lower-left corner (like Minecraft's
+--   off-hand item), with optional slot background and stack counter.
+-- * Hides the small icon that the base "offhand" mod draws next to the
+--   hotbar (offhand_screen_hide_base_icon) so the item is not shown twice.
 --
--- To keep the icon from looking like a flat inventory picture, every icon is
--- rendered through the [inventorycube texture modifier: the very same software
--- 3D renderer the engine uses to draw cubic nodes in the hotbar/inventory.
--- So a block shows up as a shaded cube (top + two side faces), and tools show
--- up with their wield_image, i.e. the same picture the engine extrudes into
--- the main hand.
---
--- ON TOP OF THAT this mod re-attaches the real 3D item that the "offhand" mod
--- puts in your left arm with forced_visible = true (see ObjectRef:set_attach).
--- Objects attached to a player are hidden in first person by default, which is
--- why that item only ever showed up in third person. It stays glued to your
--- arm, so you see it whenever your arm is inside the view (looking down),
--- while the HUD icon covers the rest of the time.
+-- WHY NOT A REAL SECOND 3D HAND / 3D ITEM IN FIRST PERSON?
+-- * The engine renders exactly ONE first-person wield model (the main hand);
+--   a second one is an open engine feature request (luanti#10345).
+-- * The base mod's real 3D item is attached to the Arm_Left bone. Attached
+--   objects are hidden in first person unless attached with forced_visible,
+--   but in first person the client does NOT apply the arm bone transform of
+--   the local player, so the item shows up floating at your feet instead of
+--   at the hand. A screen-anchored HUD icon is the only thing that can sit
+--   at "hand height" in view, so that is what this mod uses.
 --
 -- INSTALL: put this folder next to the "offhand" mod folder in your
 -- world/game mods directory and enable it like any other mod.
@@ -35,9 +36,9 @@ if not offhand then
 end
 
 -- ==== settings (also see settingtypes.txt) ====================
--- Icons are normalised to ICON_PX x ICON_PX pixels so that the scale of the
+-- Icons are normalised to icon_px x icon_px pixels so that the size of the
 -- HUD element is independent of the texture pack's resolution.
-local ICON_PX = 64
+local ICON_PX = 96
 
 local function get_number(name, default)
     return tonumber(minetest.settings:get(name)) or default
@@ -53,12 +54,13 @@ end
 
 local icon_px    = math.floor(get_number("offhand_screen_icon_size", ICON_PX))
 local bg_padding = math.floor(get_number("offhand_screen_bg_padding", 6))
-local offset_x   = get_number("offhand_screen_offset_x", 130)
-local offset_y   = get_number("offhand_screen_offset_y", -110)
-local show_bg    = get_bool("offhand_screen_show_background", true)
+local offset_x   = get_number("offhand_screen_offset_x", -300)
+local offset_y   = get_number("offhand_screen_offset_y", -150)
+local show_icon  = get_bool("offhand_screen_show_icon", true)
+local show_bg    = get_bool("offhand_screen_show_background", false)
 local show_count = get_bool("offhand_screen_show_count", true)
 local use_cubes  = get_bool("offhand_screen_3d_icons", true)
-local force_3d   = get_bool("offhand_screen_force_first_person", true)
+local hide_base  = get_bool("offhand_screen_hide_base_icon", true)
 
 if icon_px < 8 then icon_px = 8 end
 if bg_padding < 0 then bg_padding = 0 end
@@ -194,31 +196,18 @@ local function remove_huds(player)
     huds[pname] = nil
 end
 
--- The "offhand" mod draws a real 3D item by attaching a "wielditem" entity to
--- the Arm_Left bone of the player model (offhand/wielditem.lua). Attached
--- objects are hidden in first person unless they are attached with
--- forced_visible = true, so we re-attach it with that flag set.
-local function is_offhand_wield_entity(child)
-    local luaentity = child.get_luaentity and child:get_luaentity()
-    local name = luaentity and luaentity.name
-    return type(name) == "string" and name:find("offhand") ~= nil
-        and name:find("wield") ~= nil
-end
-
-function offhand_screen_view.force_first_person_item(player)
-    if not force_3d or not player.get_children then return end
-
-    local ok, children = pcall(player.get_children, player)
-    if not ok or not children then return end
-
-    for _, child in ipairs(children) do
-        if is_offhand_wield_entity(child) and child.get_attach then
-            local attached = {pcall(child.get_attach, child)}
-            -- attached = {ok, parent, bone, position, rotation, forced_visible}
-            if attached[1] and attached[2] and attached[6] ~= true then
-                pcall(child.set_attach, child, attached[2], attached[3],
-                    attached[4], attached[5], true)
-            end
+-- The base "offhand" mod draws its own small icon next to the hotbar and
+-- keeps the HUD ids in the global `offhand[player].hud` table. The ids cannot
+-- be removed safely (the base mod still calls hud_change/hud_get on them),
+-- so we just park every element far off-screen.
+function offhand_screen_view.hide_base_hud(player)
+    if not hide_base then return end
+    local data = offhand[player]
+    if type(data) ~= "table" or type(data.hud) ~= "table" then return end
+    for _, id in pairs(data.hud) do
+        if type(id) == "number" then
+            pcall(player.hud_change, player, id, "offset",
+                {x = -100000, y = -100000})
         end
     end
 end
@@ -226,6 +215,11 @@ end
 function offhand_screen_view.update(player)
     if not player or not player:is_player() then return end
     local pname = player:get_player_name()
+
+    if not show_icon then
+        remove_huds(player)
+        return
+    end
 
     local ok, stack = pcall(offhand.get_offhand, player)
     if not ok or not stack then
@@ -288,7 +282,7 @@ minetest.register_on_joinplayer(function(player)
     minetest.after(0.5, function()
         if player and player:is_player() then
             offhand_screen_view.update(player)
-            offhand_screen_view.force_first_person_item(player)
+            offhand_screen_view.hide_base_hud(player)
         end
     end)
 end)
@@ -300,15 +294,13 @@ end)
 -- react instantly whenever the offhand mod swaps/uses items
 offhand.register_on_item_change(function(player, item_before, item_after)
     offhand_screen_view.update(player)
-    -- the offhand mod re-attaches its entity here, which resets forced_visible,
-    -- so the flag has to be applied afterwards
-    offhand_screen_view.force_first_person_item(player)
+    offhand_screen_view.hide_base_hud(player)
 end)
 
 -- safety net: keeps the icon in sync even if something changes the
 -- "offhand" inventory list directly (e.g. drag & drop in a formspec)
--- without going through offhand's own change handlers, and re-applies the
--- forced_visible flag when the offhand mod recreates its entity
+-- without going through offhand's own change handlers, and keeps the base
+-- mod's icon parked off-screen if it gets re-added (e.g. hotbar resize)
 local timer = 0
 minetest.register_globalstep(function(dtime)
     timer = timer + dtime
@@ -316,6 +308,6 @@ minetest.register_globalstep(function(dtime)
     timer = 0
     for _, player in ipairs(minetest.get_connected_players()) do
         offhand_screen_view.update(player)
-        offhand_screen_view.force_first_person_item(player)
+        offhand_screen_view.hide_base_hud(player)
     end
 end)
