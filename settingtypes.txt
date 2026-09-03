@@ -14,6 +14,12 @@ offhand_screen_pos_y (Offhand icon Y position, fraction of screen height) float 
 
 offhand_screen_show_icon (Show the on-screen offhand icon) bool true
 
+# Only draw the icon in first person. The server learns the camera mode from
+# the bundled client-side companion mod (clientmods/offhand_screen_view,
+# requires enable_client_modding + enable_mod_channels); without it the icon
+# stays visible in every view.
+offhand_screen_first_person_only (Show the icon only in first person) bool true
+
 offhand_screen_show_background (Show a dark slot background behind the offhand icon) bool false
 
 offhand_screen_show_count (Show the stack size on the icon) bool true

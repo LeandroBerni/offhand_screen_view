@@ -1,8 +1,10 @@
 -- offhand_screen_view
 --
 -- Add-on for the "offhand" mod (SFENCE / t-affeldt fork of mcl_offhand).
--- Shows the item currently held in the offhand as an on-screen element,
--- drawn in BOTH first and third person.
+-- Shows the item currently held in the offhand as an on-screen element.
+-- With the bundled client-side companion mod (clientmods/) installed the icon
+-- is shown ONLY in first person and disappears automatically in 2nd/3rd
+-- person; without it the icon is drawn in both views.
 --
 -- WHAT THIS MOD DOES
 -- * Renders the item through the [inventorycube texture modifier (the same
@@ -34,10 +36,10 @@
 
 offhand_screen_view = {}
 
-if not offhand then
-    minetest.log("error", "[offhand_screen_view] 'offhand' mod not found, disabling.")
-    return
-end
+-- The base "offhand" mod is optional: if it is present we use its API, and if
+-- it is missing (or loads after us) we read the "offhand" inventory list
+-- directly, so this mod never hard-fails at startup.
+local offhand_api = nil
 
 -- ==== settings (also see settingtypes.txt) ====================
 local function get_number(name, default)
@@ -67,6 +69,7 @@ local use_spin    = get_bool("offhand_screen_spin", true)
 local spin_period = math.max(0.4, get_number("offhand_screen_spin_period", 1.6))
 local use_shadow  = get_bool("offhand_screen_shadow", true)
 local use_bob     = get_bool("offhand_screen_bob", true)
+local first_person_only = get_bool("offhand_screen_first_person_only", true)
 
 if icon_px < 8 then icon_px = 8 end
 if bg_pad < 0 then bg_pad = 0 end
@@ -76,6 +79,20 @@ local huds = {}
 -- [player_name] = { icon=id, bg=id, shadow=id, count=id,
 --                   itemname="", count_n=0, frames={}, frame_i=1,
 --                   bob_x=0, bob_y=0 }
+
+-- camera mode per player, reported by the optional client-side companion mod
+-- over the "offhand_screen_view" mod channel: 0 = first person, 1/2 = third
+-- person (back/front). nil while unknown (client mod absent or not joined).
+local cam_modes = {}
+
+local function is_first_person(pname)
+    if not first_person_only then
+        return true
+    end
+    local mode = cam_modes[pname]
+    -- without the client mod we cannot tell the view: keep the old behaviour
+    return mode == nil or mode == 0
+end
 
 local function get_tile_name(tiledef)
     if type(tiledef) == "table" then
@@ -113,6 +130,23 @@ end
 
 local function silhouette(tex)
     return tex .. "^[multiply:#000000^[opacity:90"
+end
+
+-- Returns the stack held in the offhand: via the base mod's API when it is
+-- available, otherwise straight from the "offhand" inventory list (which the
+-- base mod creates; size 0 if nobody created it).
+local function get_offhand_stack(player)
+    if offhand_api then
+        local ok, stack = pcall(offhand_api.get_offhand, player)
+        if ok and stack then
+            return stack
+        end
+    end
+    local inv = player.get_inventory and player:get_inventory()
+    if inv and inv.get_size and inv:get_size("offhand") > 0 then
+        return inv:get_stack("offhand", 1)
+    end
+    return nil
 end
 
 -- Builds the animation frames of the HUD icon. Cubic nodes get the four
@@ -244,7 +278,7 @@ end
 -- so we just park every element far off-screen. Disabled by default.
 function offhand_screen_view.hide_base_hud(player)
     if not hide_base then return end
-    local data = offhand[player]
+    local data = offhand_api and offhand_api[player]
     if type(data) ~= "table" or type(data.hud) ~= "table" then return end
     for _, id in pairs(data.hud) do
         if type(id) == "number" then
@@ -273,8 +307,17 @@ function offhand_screen_view.update(player)
         return
     end
 
-    local ok, stack = pcall(offhand.get_offhand, player)
-    if not ok or not stack then
+    -- first-person-only mode: the companion client mod (see the bottom of
+    -- this file) reports the camera mode over a mod channel; while the view
+    -- is 2nd/3rd person the whole HUD is torn down. With no report from the
+    -- client the icon stays visible, like the old behaviour.
+    if not is_first_person(pname) then
+        remove_huds(player)
+        return
+    end
+
+    local stack = get_offhand_stack(player)
+    if not stack then
         remove_huds(player)
         return
     end
@@ -368,6 +411,7 @@ end
 
 minetest.register_on_joinplayer(function(player)
     huds[player:get_player_name()] = nil
+    cam_modes[player:get_player_name()] = nil
     -- small delay so the "offhand" mod has finished setting up the
     -- player's inventory list before we read it
     minetest.after(0.5, function()
@@ -380,13 +424,53 @@ end)
 
 minetest.register_on_leaveplayer(function(player)
     huds[player:get_player_name()] = nil
+    cam_modes[player:get_player_name()] = nil
 end)
 
--- react instantly whenever the offhand mod swaps/uses items
-offhand.register_on_item_change(function(player, item_before, item_after)
-    offhand_screen_view.update(player)
-    offhand_screen_view.hide_base_hud(player)
-end)
+-- react instantly whenever the offhand mod swaps/uses items; the base mod may
+-- not be loaded yet (it can come after us), so this is wired up in bind()
+local function bind(api)
+    offhand_api = api
+    if type(api.register_on_item_change) == "function" then
+        api.register_on_item_change(function(player, item_before, item_after)
+            offhand_screen_view.update(player)
+            offhand_screen_view.hide_base_hud(player)
+        end)
+    end
+end
+
+-- duck-type the base mod: t-affeldt / SFENCE expose `offhand`, MCL2 exposes
+-- `mcl_offhand`; both provide get_offhand()
+local function find_offhand()
+    for _, name in ipairs({"offhand", "mcl_offhand"}) do
+        local candidate = _G[name]
+        if type(candidate) == "table"
+                and type(candidate.get_offhand) == "function" then
+            return candidate
+        end
+    end
+    return nil
+end
+
+local function try_bind(deferred)
+    local api = find_offhand()
+    if api then
+        bind(api)
+        return true
+    end
+    if deferred then
+        minetest.log("warning", "[offhand_screen_view] base 'offhand' mod not "
+            .. "detected; reading the 'offhand' inventory list directly. The "
+            .. "icon appears as soon as that list holds an item.")
+    end
+    return false
+end
+
+if not try_bind(false) and minetest.register_on_mods_loaded then
+    minetest.register_on_mods_loaded(function()
+        try_bind(true)
+    end)
+end
 
 -- safety net + animations:
 -- * every 0.5 s the icon is resynced with the "offhand" inventory list, in
@@ -424,3 +508,40 @@ minetest.register_globalstep(function(dtime)
         end
     end
 end)
+
+-- ---------------------------------------------------------------------------
+-- Camera-mode reports from the optional client-side companion mod
+--
+-- The server has no API for the camera mode the client is currently in
+-- (player:get_camera() only returns server-imposed restrictions), so the
+-- companion mod in clientmods/offhand_screen_view/init.lua sends
+-- "FP <mode>" (0 = first person, 1/2 = third person) over the
+-- "offhand_screen_view" mod channel whenever the view changes.
+--
+-- For the auto-hiding to work:
+--   client minetest.conf:  enable_client_modding = true
+--                          and the client mod enabled in
+--                          <minetest>/clientmods/mods.conf
+--   server minetest.conf:  enable_mod_channels = true
+--
+-- If no client mod is installed, no messages arrive and the icon is simply
+-- always visible (the pre-companion behaviour).
+-- ---------------------------------------------------------------------------
+local CHANNEL_NAME = "offhand_screen_view"
+
+if first_person_only and minetest.mod_channel_join
+        and minetest.register_on_modchannel_message then
+    minetest.mod_channel_join(CHANNEL_NAME)
+
+    minetest.register_on_modchannel_message(function(channel_name, sender, message)
+        if channel_name ~= CHANNEL_NAME or sender == "" then return end
+        local mode = tonumber(tostring(message):match("^FP (%d+)$"))
+        if mode == nil or mode < 0 or mode > 2 then return end
+        if cam_modes[sender] == mode then return end
+        cam_modes[sender] = mode
+        local player = minetest.get_player_by_name(sender)
+        if player then
+            offhand_screen_view.update(player)
+        end
+    end)
+end
