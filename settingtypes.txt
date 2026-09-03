@@ -22,6 +22,17 @@ offhand_screen_show_count (Show the stack size on the icon) bool true
 # hotbar) instead of using the flat top texture.
 offhand_screen_3d_icons (Render blocks as 3D cubes) bool true
 
+# Make the cube slowly turn (cycles the four isometric rotations), so it reads
+# as a 3D object instead of a pasted image.
+offhand_screen_spin (Rotate the cube slowly) bool true
+offhand_screen_spin_period (Seconds per full cube rotation) float 1.6 0.4 10
+
+# Soft drop shadow behind the icon, to lift it off the screen.
+offhand_screen_shadow (Draw a drop shadow behind the icon) bool true
+
+# Sway the icon while walking, like a carried object.
+offhand_screen_bob (Sway the icon while walking) bool true
+
 # The base "offhand" mod also draws its own small icon next to the hotbar.
 # OFF by default so both stay visible; enable to hide the base one.
 offhand_screen_hide_base_icon (Hide the base offhand mod's icon next to the hotbar) bool false

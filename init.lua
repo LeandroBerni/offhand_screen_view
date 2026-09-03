@@ -9,16 +9,20 @@
 --   software 3D renderer the engine uses for the hotbar cubes), so blocks
 --   look like shaded cubes instead of a flat tile, and tools use their
 --   wield_image.
--- * Draws it LARGE, anchored to the lower-left corner of the screen (the
---   mirror image of the engine's main-hand wield view, which sits in the
---   lower-right). Position is given as a fraction of the screen so it works
---   on any resolution.
+-- * Makes the cube feel like a held 3D object instead of a pasted sticker:
+--     - it slowly turns (the four isometric rotations of the cube are cycled),
+--     - it casts a soft drop shadow,
+--     - it bobs while you walk.
+-- * Draws it large, anchored to the lower-left corner (the mirror image of
+--   the engine's main-hand wield view, which sits in the lower right). The
+--   position is a fraction of the screen, so it works on any resolution.
 -- * Optionally hides the small icon the base "offhand" mod draws next to the
 --   hotbar (offhand_screen_hide_base_icon, OFF by default).
 --
 -- WHY NOT A REAL SECOND 3D HAND?
 -- * The engine renders exactly ONE first-person wield model (the main hand);
---   a second one is an open engine feature request (luanti#10345).
+--   a second one is an open engine feature request (luanti#10345), so no mod
+--   can add it.
 -- * The base mod's real 3D item is attached to the Arm_Left bone. Attached
 --   objects are hidden in first person unless attached with forced_visible,
 --   but in first person the client does NOT apply the local player's bone
@@ -50,21 +54,28 @@ end
 
 -- Icons are normalised to icon_px x icon_px pixels so that all the pixel
 -- offsets below stay consistent.
-local icon_px  = math.floor(get_number("offhand_screen_icon_size", 380))
-local bg_pad   = math.floor(get_number("offhand_screen_bg_padding", 6))
-local pos_x    = get_number("offhand_screen_pos_x", 0.12)
-local pos_y    = get_number("offhand_screen_pos_y", 0.88)
-local show_icon  = get_bool("offhand_screen_show_icon", true)
-local show_bg    = get_bool("offhand_screen_show_background", false)
-local show_count = get_bool("offhand_screen_show_count", true)
-local use_cubes  = get_bool("offhand_screen_3d_icons", true)
-local hide_base  = get_bool("offhand_screen_hide_base_icon", false)
+local icon_px     = math.floor(get_number("offhand_screen_icon_size", 380))
+local bg_pad      = math.floor(get_number("offhand_screen_bg_padding", 6))
+local pos_x       = get_number("offhand_screen_pos_x", 0.12)
+local pos_y       = get_number("offhand_screen_pos_y", 0.88)
+local show_icon   = get_bool("offhand_screen_show_icon", true)
+local show_bg     = get_bool("offhand_screen_show_background", false)
+local show_count  = get_bool("offhand_screen_show_count", true)
+local use_cubes   = get_bool("offhand_screen_3d_icons", true)
+local hide_base   = get_bool("offhand_screen_hide_base_icon", false)
+local use_spin    = get_bool("offhand_screen_spin", true)
+local spin_period = math.max(0.4, get_number("offhand_screen_spin_period", 1.6))
+local use_shadow  = get_bool("offhand_screen_shadow", true)
+local use_bob     = get_bool("offhand_screen_bob", true)
 
 if icon_px < 8 then icon_px = 8 end
 if bg_pad < 0 then bg_pad = 0 end
 -- =================================================================
 
-local huds = {} -- [player_name] = { icon = id, bg = id, count = id, itemname = "", count_n = 0 }
+local huds = {}
+-- [player_name] = { icon=id, bg=id, shadow=id, count=id,
+--                   itemname="", count_n=0, frames={}, frame_i=1,
+--                   bob_x=0, bob_y=0 }
 
 local function get_tile_name(tiledef)
     if type(tiledef) == "table" then
@@ -100,25 +111,31 @@ local function normalized(tex)
     return tex .. "^[resize:" .. icon_px .. "x" .. icon_px
 end
 
--- Builds the texture shown in the HUD for the given item.
+local function silhouette(tex)
+    return tex .. "^[multiply:#000000^[opacity:90"
+end
+
+-- Builds the animation frames of the HUD icon. Cubic nodes get the four
+-- isometric rotations of their cube (cycling them reads as a turning 3D
+-- object); everything else gets a single static frame.
 -- Priority mirrors what the engine puts into the main hand:
 --   wield_image -> inventory_image -> 3D cube built from the node tiles.
-function offhand_screen_view.build_icon(itemname)
+function offhand_screen_view.build_icon_frames(itemname)
     if not itemname or itemname == "" then
         return nil
     end
 
     local def = minetest.registered_items[itemname]
     if not def then
-        return normalized("unknown_item.png")
+        return {normalized("unknown_item.png")}
     end
 
     if def.wield_image and def.wield_image ~= "" then
-        return normalized(def.wield_image)
+        return {normalized(def.wield_image)}
     end
 
     if def.inventory_image and def.inventory_image ~= "" then
-        return normalized(def.inventory_image)
+        return {normalized(def.inventory_image)}
     end
 
     local tiles = def.tiles
@@ -127,15 +144,30 @@ function offhand_screen_view.build_icon(itemname)
         if top and top ~= "" then
             local is_node = minetest.registered_nodes[itemname] ~= nil
             if use_cubes and is_node and not FLAT_DRAWTYPES[def.drawtype] then
-                local left = get_tile_name(tiles[3] or tiles[1])
-                local right = get_tile_name(tiles[5] or tiles[3] or tiles[1])
-                return normalized(inventorycube(top, left, right))
+                local t1 = top
+                local t3 = get_tile_name(tiles[3] or tiles[1])
+                local t5 = get_tile_name(tiles[5] or tiles[3] or tiles[1])
+                local t4 = get_tile_name(tiles[4] or tiles[3] or tiles[1])
+                local t6 = get_tile_name(tiles[6] or tiles[5] or tiles[3] or tiles[1])
+                -- one full turn, 90 degrees per frame: which side faces the
+                -- left/right of the isometric view
+                return {
+                    normalized(inventorycube(t1, t3, t5)),
+                    normalized(inventorycube(t1, t5, t4)),
+                    normalized(inventorycube(t1, t4, t6)),
+                    normalized(inventorycube(t1, t6, t3)),
+                }
             end
-            return normalized(top)
+            return {normalized(top)}
         end
     end
 
-    return normalized("unknown_item.png")
+    return {normalized("unknown_item.png")}
+end
+
+function offhand_screen_view.build_icon(itemname)
+    local frames = offhand_screen_view.build_icon_frames(itemname)
+    return frames and frames[1] or nil
 end
 
 local function add_icon_hud(player, icon)
@@ -151,6 +183,20 @@ local function add_icon_hud(player, icon)
     })
 end
 
+local function add_shadow_hud(player, icon)
+    return player:hud_add({
+        hud_elem_type = "image",
+        type = "image",
+        name = "offhand_screen_view_shadow",
+        position  = {x = pos_x, y = pos_y},
+        offset    = {x = 10, y = 10},
+        alignment = {x = 0, y = 0},
+        scale     = {x = 1, y = 1},
+        text      = silhouette(icon),
+        z_index   = 100,
+    })
+end
+
 local function add_bg_hud(player)
     local size = icon_px + 2 * bg_pad
     return player:hud_add({
@@ -161,7 +207,7 @@ local function add_bg_hud(player)
         alignment = {x = 0, y = 0},
         scale     = {x = 1, y = 1},
         text      = "[fill:" .. size .. "x" .. size .. ":#00000066",
-        z_index   = 100,
+        z_index   = 99,
     })
 end
 
@@ -183,7 +229,7 @@ local function remove_huds(player)
     local pname = player:get_player_name()
     local data = huds[pname]
     if not data then return end
-    for _, key in ipairs({"bg", "icon", "count"}) do
+    for _, key in ipairs({"bg", "shadow", "icon", "count"}) do
         if data[key] then
             player:hud_remove(data[key])
             data[key] = nil
@@ -205,6 +251,16 @@ function offhand_screen_view.hide_base_hud(player)
             pcall(player.hud_change, player, id, "offset",
                 {x = -100000, y = -100000})
         end
+    end
+end
+
+local function set_item(player, data, itemname)
+    data.frames = offhand_screen_view.build_icon_frames(itemname) or {}
+    data.frame_i = 1
+    data.itemname = itemname
+    player:hud_change(data.icon, "text", data.frames[1] or "")
+    if data.shadow then
+        player:hud_change(data.shadow, "text", silhouette(data.frames[1] or ""))
     end
 end
 
@@ -234,11 +290,15 @@ function offhand_screen_view.update(player)
     local data = huds[pname]
 
     if not data then
-        data = {itemname = itemname, count_n = count}
+        data = {itemname = "", count_n = count}
         if show_bg then
             data.bg = add_bg_hud(player)
         end
-        data.icon = add_icon_hud(player, offhand_screen_view.build_icon(itemname))
+        if use_shadow then
+            data.shadow = add_shadow_hud(player, "unknown_item.png")
+        end
+        data.icon = add_icon_hud(player, "unknown_item.png")
+        set_item(player, data, itemname)
         if show_count and count > 1 then
             data.count = add_count_hud(player, count)
         end
@@ -246,14 +306,8 @@ function offhand_screen_view.update(player)
         return
     end
 
-    -- nothing to do: the slot still shows exactly this stack
-    if data.itemname == itemname and data.count_n == count then
-        return
-    end
-
     if data.itemname ~= itemname then
-        player:hud_change(data.icon, "text", offhand_screen_view.build_icon(itemname))
-        data.itemname = itemname
+        set_item(player, data, itemname)
     end
 
     if data.count_n ~= count then
@@ -268,6 +322,47 @@ function offhand_screen_view.update(player)
             data.count = nil
         end
         data.count_n = count
+    end
+end
+
+-- turns the cube one frame further
+function offhand_screen_view.spin(player)
+    if not use_spin then return end
+    local data = huds[player:get_player_name()]
+    if not data or not data.frames or #data.frames < 2 then return end
+    data.frame_i = data.frame_i % #data.frames + 1
+    local frame = data.frames[data.frame_i]
+    player:hud_change(data.icon, "text", frame)
+    if data.shadow then
+        player:hud_change(data.shadow, "text", silhouette(frame))
+    end
+end
+
+-- makes the icon sway while the player walks, like a carried object
+function offhand_screen_view.bob(player, clock)
+    if not use_bob then return end
+    local data = huds[player:get_player_name()]
+    if not data then return end
+
+    local bx, by = 0, 0
+    if player.get_player_velocity and vector and vector.length then
+        local ok, vel = pcall(player.get_player_velocity, player)
+        if ok and vel and vector.length(vel) > 1 then
+            bx = math.cos(clock * 9) * 5
+            by = math.sin(clock * 18) * 6
+        end
+    end
+
+    if bx == data.bob_x and by == data.bob_y then return end
+    data.bob_x, data.bob_y = bx, by
+
+    player:hud_change(data.icon, "offset", {x = bx, y = by})
+    if data.shadow then
+        player:hud_change(data.shadow, "offset", {x = bx + 10, y = by + 10})
+    end
+    if data.count then
+        player:hud_change(data.count, "offset",
+            {x = icon_px / 2 - 12 + bx, y = icon_px / 2 - 12 + by})
     end
 end
 
@@ -293,16 +388,39 @@ offhand.register_on_item_change(function(player, item_before, item_after)
     offhand_screen_view.hide_base_hud(player)
 end)
 
--- safety net: keeps the icon in sync even if something changes the
--- "offhand" inventory list directly (e.g. drag & drop in a formspec)
--- without going through offhand's own change handlers
-local timer = 0
+-- safety net + animations:
+-- * every 0.5 s the icon is resynced with the "offhand" inventory list, in
+--   case something changed it without going through offhand's own handlers
+--   (e.g. drag & drop in a formspec)
+-- * the cube is turned and the walk-bob applied continuously
+local sync_timer = 0
+local spin_timer = 0
+local bob_timer = 0
 minetest.register_globalstep(function(dtime)
-    timer = timer + dtime
-    if timer < 0.5 then return end
-    timer = 0
+    sync_timer = sync_timer + dtime
+    spin_timer = spin_timer + dtime
+    bob_timer = bob_timer + dtime
+
+    local do_sync = sync_timer >= 0.5
+    local do_spin = spin_timer >= spin_period / 4
+    local do_bob = bob_timer >= 0.1
+    if not (do_sync or do_spin or do_bob) then return end
+
+    if do_sync then sync_timer = 0 end
+    if do_spin then spin_timer = 0 end
+    if do_bob then bob_timer = 0 end
+
+    local clock = os.clock()
     for _, player in ipairs(minetest.get_connected_players()) do
-        offhand_screen_view.update(player)
-        offhand_screen_view.hide_base_hud(player)
+        if do_sync then
+            offhand_screen_view.update(player)
+            offhand_screen_view.hide_base_hud(player)
+        end
+        if do_spin then
+            offhand_screen_view.spin(player)
+        end
+        if do_bob then
+            offhand_screen_view.bob(player, clock)
+        end
     end
 end)
