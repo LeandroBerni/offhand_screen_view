@@ -1,29 +1,29 @@
 -- offhand_screen_view
 --
 -- Add-on for the "offhand" mod (SFENCE / t-affeldt fork of mcl_offhand).
--- Shows the item currently held in the offhand as an on-screen icon,
--- similar to Minecraft's off-hand indicator, drawn in BOTH first and
--- third person.
+-- Shows the item currently held in the offhand as an on-screen element,
+-- drawn in BOTH first and third person.
 --
 -- WHAT THIS MOD DOES
--- * Renders the icon through the [inventorycube texture modifier (the same
+-- * Renders the item through the [inventorycube texture modifier (the same
 --   software 3D renderer the engine uses for the hotbar cubes), so blocks
 --   look like shaded cubes instead of a flat tile, and tools use their
 --   wield_image.
--- * Places it at hand height in the lower-left corner (like Minecraft's
---   off-hand item), with optional slot background and stack counter.
--- * Hides the small icon that the base "offhand" mod draws next to the
---   hotbar (offhand_screen_hide_base_icon) so the item is not shown twice.
+-- * Draws it LARGE, anchored to the lower-left corner of the screen (the
+--   mirror image of the engine's main-hand wield view, which sits in the
+--   lower-right). Position is given as a fraction of the screen so it works
+--   on any resolution.
+-- * Optionally hides the small icon the base "offhand" mod draws next to the
+--   hotbar (offhand_screen_hide_base_icon, OFF by default).
 --
--- WHY NOT A REAL SECOND 3D HAND / 3D ITEM IN FIRST PERSON?
+-- WHY NOT A REAL SECOND 3D HAND?
 -- * The engine renders exactly ONE first-person wield model (the main hand);
 --   a second one is an open engine feature request (luanti#10345).
 -- * The base mod's real 3D item is attached to the Arm_Left bone. Attached
 --   objects are hidden in first person unless attached with forced_visible,
---   but in first person the client does NOT apply the arm bone transform of
---   the local player, so the item shows up floating at your feet instead of
---   at the hand. A screen-anchored HUD icon is the only thing that can sit
---   at "hand height" in view, so that is what this mod uses.
+--   but in first person the client does NOT apply the local player's bone
+--   transforms, so the item shows up floating at your feet. A screen-anchored
+--   HUD element is the only thing that can sit at "hand height" in view.
 --
 -- INSTALL: put this folder next to the "offhand" mod folder in your
 -- world/game mods directory and enable it like any other mod.
@@ -36,10 +36,6 @@ if not offhand then
 end
 
 -- ==== settings (also see settingtypes.txt) ====================
--- Icons are normalised to icon_px x icon_px pixels so that the size of the
--- HUD element is independent of the texture pack's resolution.
-local ICON_PX = 96
-
 local function get_number(name, default)
     return tonumber(minetest.settings:get(name)) or default
 end
@@ -52,18 +48,20 @@ local function get_bool(name, default)
     return value
 end
 
-local icon_px    = math.floor(get_number("offhand_screen_icon_size", ICON_PX))
-local bg_padding = math.floor(get_number("offhand_screen_bg_padding", 6))
-local offset_x   = get_number("offhand_screen_offset_x", -300)
-local offset_y   = get_number("offhand_screen_offset_y", -150)
+-- Icons are normalised to icon_px x icon_px pixels so that all the pixel
+-- offsets below stay consistent.
+local icon_px  = math.floor(get_number("offhand_screen_icon_size", 380))
+local bg_pad   = math.floor(get_number("offhand_screen_bg_padding", 6))
+local pos_x    = get_number("offhand_screen_pos_x", 0.12)
+local pos_y    = get_number("offhand_screen_pos_y", 0.88)
 local show_icon  = get_bool("offhand_screen_show_icon", true)
 local show_bg    = get_bool("offhand_screen_show_background", false)
 local show_count = get_bool("offhand_screen_show_count", true)
 local use_cubes  = get_bool("offhand_screen_3d_icons", true)
-local hide_base  = get_bool("offhand_screen_hide_base_icon", true)
+local hide_base  = get_bool("offhand_screen_hide_base_icon", false)
 
 if icon_px < 8 then icon_px = 8 end
-if bg_padding < 0 then bg_padding = 0 end
+if bg_pad < 0 then bg_pad = 0 end
 -- =================================================================
 
 local huds = {} -- [player_name] = { icon = id, bg = id, count = id, itemname = "", count_n = 0 }
@@ -145,8 +143,7 @@ local function add_icon_hud(player, icon)
         hud_elem_type = "image",
         type = "image",
         name = "offhand_screen_view_icon",
-        position  = {x = 0.5, y = 1},
-        offset    = {x = offset_x, y = offset_y},
+        position  = {x = pos_x, y = pos_y},
         alignment = {x = 0, y = 0},
         scale     = {x = 1, y = 1},
         text      = icon,
@@ -155,13 +152,12 @@ local function add_icon_hud(player, icon)
 end
 
 local function add_bg_hud(player)
-    local size = icon_px + 2 * bg_padding
+    local size = icon_px + 2 * bg_pad
     return player:hud_add({
         hud_elem_type = "image",
         type = "image",
         name = "offhand_screen_view_bg",
-        position  = {x = 0.5, y = 1},
-        offset    = {x = offset_x, y = offset_y},
+        position  = {x = pos_x, y = pos_y},
         alignment = {x = 0, y = 0},
         scale     = {x = 1, y = 1},
         text      = "[fill:" .. size .. "x" .. size .. ":#00000066",
@@ -174,8 +170,8 @@ local function add_count_hud(player, count)
         hud_elem_type = "text",
         type = "text",
         name = "offhand_screen_view_count",
-        position  = {x = 0.5, y = 1},
-        offset    = {x = offset_x + icon_px / 2, y = offset_y + icon_px / 2},
+        position  = {x = pos_x, y = pos_y},
+        offset    = {x = icon_px / 2 - 12, y = icon_px / 2 - 12},
         alignment = {x = -1, y = -1},
         text      = tostring(count),
         number    = 0xFFFFFF,
@@ -199,7 +195,7 @@ end
 -- The base "offhand" mod draws its own small icon next to the hotbar and
 -- keeps the HUD ids in the global `offhand[player].hud` table. The ids cannot
 -- be removed safely (the base mod still calls hud_change/hud_get on them),
--- so we just park every element far off-screen.
+-- so we just park every element far off-screen. Disabled by default.
 function offhand_screen_view.hide_base_hud(player)
     if not hide_base then return end
     local data = offhand[player]
@@ -299,8 +295,7 @@ end)
 
 -- safety net: keeps the icon in sync even if something changes the
 -- "offhand" inventory list directly (e.g. drag & drop in a formspec)
--- without going through offhand's own change handlers, and keeps the base
--- mod's icon parked off-screen if it gets re-added (e.g. hotbar resize)
+-- without going through offhand's own change handlers
 local timer = 0
 minetest.register_globalstep(function(dtime)
     timer = timer + dtime
