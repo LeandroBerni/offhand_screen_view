@@ -15,6 +15,9 @@
 --     - it slowly turns (the four isometric rotations of the cube are cycled),
 --     - it casts a soft drop shadow,
 --     - it bobs while you walk.
+-- * Draws the player's OWN left hand under the item: the arm is cropped live
+--   out of the player's skin with [combine (64x64 and old 64x32 layouts),
+--   shaded by a bundled mask and turned horizontal, so any skin works.
 -- * Draws it large, anchored to the lower-left corner (the mirror image of
 --   the engine's main-hand wield view, which sits in the lower right). The
 --   position is a fraction of the screen, so it works on any resolution.
@@ -70,9 +73,13 @@ local spin_period = math.max(0.4, get_number("offhand_screen_spin_period", 1.6))
 local use_shadow  = get_bool("offhand_screen_shadow", true)
 local use_bob     = get_bool("offhand_screen_bob", true)
 local first_person_only = get_bool("offhand_screen_first_person_only", true)
+local use_hand    = get_bool("offhand_screen_hand", true)
+local hand_layout = math.floor(get_number("offhand_screen_hand_skin_layout", 64))
+local hand_len    = math.floor(get_number("offhand_screen_hand_size", 240))
 
 if icon_px < 8 then icon_px = 8 end
 if bg_pad < 0 then bg_pad = 0 end
+if hand_len < 24 then hand_len = 24 end
 -- =================================================================
 
 local huds = {}
@@ -130,6 +137,35 @@ end
 
 local function silhouette(tex)
     return tex .. "^[multiply:#000000^[opacity:90"
+end
+
+-- The player's current skin texture name, or nil.
+local function get_player_skin(player)
+    if not player.get_properties then return nil end
+    local ok, props = pcall(player.get_properties, player)
+    if ok and props and props.textures then
+        return props.textures[1]
+    end
+    return nil
+end
+
+-- Builds the left-hand layer by CROPPING the player's own skin: the front face
+-- of the left arm lives at (36,52) 4x12 in 64x64 skins; old 64x32 skins only
+-- carry the right arm at (44,20), which we mirror. [combine with negative
+-- offsets is the crop. A bundled 4x12 shade mask fakes the round arm, then the
+-- strip is turned horizontal (hand pointing right) and scaled up.
+function offhand_screen_view.build_hand_texture(skin, layout)
+    if not skin or skin == "" then
+        return nil
+    end
+    local crop
+    if layout == 32 then
+        crop = "[combine:4x12:-44,-20=" .. skin .. "^[transformFX"
+    else
+        crop = "[combine:4x12:-36,-52=" .. skin
+    end
+    return crop .. "^offhand_screen_view_hand_shade.png"
+        .. "^[transformR270^[resize:" .. hand_len .. "x" .. math.floor(hand_len / 3)
 end
 
 -- Returns the stack held in the offhand: via the base mod's API when it is
@@ -217,6 +253,21 @@ local function add_icon_hud(player, icon)
     })
 end
 
+-- the hand layer sits a bit below/behind the item so the item rests on the
+-- palm; it bobs together with the item
+local function add_hand_hud(player, tex)
+    return player:hud_add({
+        hud_elem_type = "image",
+        type = "image",
+        name = "offhand_screen_view_hand",
+        position  = {x = pos_x - 0.02, y = pos_y + 0.07},
+        alignment = {x = 0, y = 0},
+        scale     = {x = 1, y = 1},
+        text      = tex,
+        z_index   = 99,
+    })
+end
+
 local function add_shadow_hud(player, icon)
     return player:hud_add({
         hud_elem_type = "image",
@@ -241,7 +292,7 @@ local function add_bg_hud(player)
         alignment = {x = 0, y = 0},
         scale     = {x = 1, y = 1},
         text      = "[fill:" .. size .. "x" .. size .. ":#00000066",
-        z_index   = 99,
+        z_index   = 98,
     })
 end
 
@@ -263,7 +314,7 @@ local function remove_huds(player)
     local pname = player:get_player_name()
     local data = huds[pname]
     if not data then return end
-    for _, key in ipairs({"bg", "shadow", "icon", "count"}) do
+    for _, key in ipairs({"bg", "hand", "shadow", "icon", "count"}) do
         if data[key] then
             player:hud_remove(data[key])
             data[key] = nil
@@ -337,6 +388,12 @@ function offhand_screen_view.update(player)
         if show_bg then
             data.bg = add_bg_hud(player)
         end
+        local skin = get_player_skin(player)
+        data.skin = skin or ""
+        if use_hand and skin and skin ~= "" then
+            data.hand = add_hand_hud(player,
+                offhand_screen_view.build_hand_texture(skin, hand_layout))
+        end
         if use_shadow then
             data.shadow = add_shadow_hud(player, "unknown_item.png")
         end
@@ -365,6 +422,20 @@ function offhand_screen_view.update(player)
             data.count = nil
         end
         data.count_n = count
+    end
+
+    -- rebuild the hand layer if the player changed their skin
+    local skin = get_player_skin(player)
+    local skin_name = skin or ""
+    if skin_name ~= data.skin then
+        data.skin = skin_name
+        if data.hand then
+            player:hud_change(data.hand, "text",
+                offhand_screen_view.build_hand_texture(skin_name, hand_layout) or "")
+        elseif use_hand and skin_name ~= "" then
+            data.hand = add_hand_hud(player,
+                offhand_screen_view.build_hand_texture(skin_name, hand_layout))
+        end
     end
 end
 
@@ -400,6 +471,9 @@ function offhand_screen_view.bob(player, clock)
     data.bob_x, data.bob_y = bx, by
 
     player:hud_change(data.icon, "offset", {x = bx, y = by})
+    if data.hand then
+        player:hud_change(data.hand, "offset", {x = bx, y = by})
+    end
     if data.shadow then
         player:hud_change(data.shadow, "offset", {x = bx + 10, y = by + 10})
     end

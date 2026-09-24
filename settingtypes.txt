@@ -39,6 +39,17 @@ offhand_screen_shadow (Draw a drop shadow behind the icon) bool true
 # Sway the icon while walking, like a carried object.
 offhand_screen_bob (Sway the icon while walking) bool true
 
+# Draw the player's own left hand (cropped live out of their skin with
+# [combine) under the item, so the item looks held in the palm.
+offhand_screen_hand (Draw the player's hand under the item) bool true
+
+# Skin layout used to find the arm: 64 = 64x64 skins (left arm), 32 = old
+# 64x32 skins (the right arm is mirrored into a left hand).
+offhand_screen_hand_skin_layout (Skin layout, 64 or 32) int 64 32 64
+
+# Length of the drawn hand in pixels (thickness is a third of this).
+offhand_screen_hand_size (Hand length in pixels) int 240 24 1024
+
 # The base "offhand" mod also draws its own small icon next to the hotbar.
 # OFF by default so both stay visible; enable to hide the base one.
 offhand_screen_hide_base_icon (Hide the base offhand mod's icon next to the hotbar) bool false

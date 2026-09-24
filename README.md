@@ -24,15 +24,22 @@ mientras que en la mano principal el motor extruye un objeto 3D.
      (`offhand_screen_spin`),
    - tiene una **sombra** suave detrás (`offhand_screen_shadow`),
    - **se balancea** al caminar (`offhand_screen_bob`).
-2. **Posición de mano izquierda.** El icono va anclado abajo a la izquierda,
+2. **La mano del jugador, recortada de su skin.** Debajo del ítem se dibuja el
+   brazo izquierdo del propio jugador: se recorta en vivo de su textura de
+   skin con `[combine` (brazo izquierdo en skins 64x64; en las viejas 64x32 se
+   espeja el brazo derecho), se le aplica una máscara de sombreado
+   (`textures/offhand_screen_view_hand_shade.png`) para que no quede plano, y
+   se rota/acompaña el balanceo al caminar. Funciona con cualquier skin y se
+   reconstruye solo si el jugador se la cambia.
+3. **Posición de mano izquierda.** El icono va anclado abajo a la izquierda,
    grande (380 px por defecto), espejando la vista de la mano principal del
    motor. La posición es una *fracción de pantalla* (`pos_x`, `pos_y`), así
    funciona en cualquier resolución.
-3. **Contador de items** en la esquina, como en Minecraft.
-4. Opcionalmente **esconde el icono del mod base** junto al hotbar
+4. **Contador de items** en la esquina, como en Minecraft.
+5. Opcionalmente **esconde el icono del mod base** junto al hotbar
    (`offhand_screen_hide_base_icon`, apagado por defecto: los dos quedan
    visibles).
-5. **Solo primera persona, automático.** El servidor no puede saber en qué
+6. **Solo primera persona, automático.** El servidor no puede saber en qué
    cámara estás (`player:get_camera()` solo devuelve restricciones que pone el
    propio servidor), así que este repo trae un **mod cliente**
    (`clientmods/offhand_screen_view`) que lee `core.camera:get_camera_mode()`
@@ -91,6 +98,9 @@ las vistas. También podés desactivar el ocultado con
 | `offhand_screen_spin_period` | `1.6` | Segundos por vuelta completa. |
 | `offhand_screen_shadow` | `true` | Sombra detrás del icono. |
 | `offhand_screen_bob` | `true` | Balanceo al caminar. |
+| `offhand_screen_hand` | `true` | Dibujar la mano del jugador (recortada de su skin) bajo el ítem. |
+| `offhand_screen_hand_skin_layout` | `64` | Layout de skin: `64` (64x64) o `32` (64x32 viejas). |
+| `offhand_screen_hand_size` | `240` | Largo de la mano en píxeles. |
 | `offhand_screen_hide_base_icon` | `false` | Esconder el icono del mod base. |
 
 ## API

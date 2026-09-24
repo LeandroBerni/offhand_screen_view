@@ -1,0 +1,34 @@
+OFFHAND SCREEN VIEW - cómo se instala
+=====================================
+
+Este mod tiene DOS partes:
+
+A) MOD SERVIDOR (la carpeta offhand_screen_view/)
+   Copiá la carpeta offhand_screen_view a la carpeta mods/ de tu juego
+   (o del mundo), como cualquier mod. Ahí van init.lua, mod.conf,
+   settingtypes.txt, textures/ y README.md.
+
+B) MOD CLIENTE para el ocultado automático según la cámara
+   (está en offhand_screen_view/clientmods/offhand_screen_view/)
+   1. Copiá esa carpeta a <carpeta de usuario de Luanti>/clientmods/,
+      es decir:  clientmods/offhand_screen_view/
+      La "carpeta de usuario" es la que contiene tu minetest.conf:
+        - instalación normal de Windows: C:\Users\<tu_usuario>\AppData\minetest\
+          (Win+R -> %APPDATA%\minetest -> Enter)
+        - versión portable/zip: la carpeta donde está minetest.exe
+   2. En minetest.conf agregá:
+        enable_client_modding = true
+        enable_mod_channels = true
+   3. En <carpeta de usuario>/clientmods/mods.conf (crealo si no existe):
+        load_mod_offhand_screen_view = true
+   4. Reiniciá el juego y comprobalo dentro del mundo con /osv_status
+
+Sin la parte B todo funciona igual, pero el icono se ve en todas las
+vistas (el servidor solo no puede saber en qué cámara estás).
+
+Ajustes rápidos (minetest.conf o menú de ajustes):
+  offhand_screen_hand            true   mano del jugador bajo el item
+  offhand_screen_hand_skin_layout 64    skins 64x64; 32 = skins viejas
+  offhand_screen_hand_size        240   largo de la mano en px
+  offhand_screen_first_person_only true  ocultar fuera de 1ª persona
+  (y giro/sombra/balanceo/tamaño/posición, ver README.md)

@@ -42,6 +42,7 @@ vector = {
 local overrides = {}
 overrides["offhand_screen_icon_size"] = "64"      -- keep expectations simple
 overrides["offhand_screen_show_background"] = true -- exercise the bg element
+overrides["offhand_screen_hand"] = false -- the hand layer has its own section
 
 minetest = {}
 
@@ -194,6 +195,8 @@ local function new_player(name)
         get_stack = function(self, list) return self.stacks[list] or ItemStack("") end,
     }
     function p:get_inventory() return self.inv end
+    p.props = {textures = {"character.png"}}
+    function p:get_properties() return self.props end
     function p:hud_add(def)
         assert(def.hud_elem_type or def.type, "hud_add without element type")
         local id = self.next_id
@@ -449,6 +452,45 @@ offhand_screen_view.update(player)
 eq(player:count_huds(), 3, "icon stays visible with first_person_only = false")
 overrides["offhand_screen_first_person_only"] = nil
 offhand_screen_view = nil
+load_mod()
+
+-- ==== hand layer cropped from the player skin =====================
+overrides["offhand_screen_hand"] = true
+offhand_screen_view = nil
+for id in pairs(player.huds) do player.huds[id] = nil end -- engine keeps HUDs across reloads; the fake does not
+load_mod()
+offhand.stacks.tester = ItemStack("default:stone", 1)
+offhand_screen_view.update(player)
+local hand_id = player:find_hud("offhand_screen_view_hand")
+ok(hand_id ~= nil, "the hand layer is drawn when enabled")
+eq(player.huds[hand_id].text,
+    "[combine:4x12:-36,-52=character.png^offhand_screen_view_hand_shade.png"
+        .. "^[transformR270^[resize:240x80",
+    "the hand is cropped from the left arm of a 64x64 skin")
+eq(player:count_huds(), 4, "bg + hand + shadow + icon")
+
+-- changing the skin rebuilds the hand on the next update
+player.props.textures = {"fancy_skin.png"}
+offhand_screen_view.update(player)
+ok(player.huds[hand_id].text:find("fancy_skin", 1, true) ~= nil,
+    "a skin change rebuilds the hand texture")
+player.props.textures = {"character.png"}
+
+-- old 64x32 skins mirror the right arm into a left hand
+overrides["offhand_screen_hand_skin_layout"] = 32
+offhand_screen_view = nil
+for id in pairs(player.huds) do player.huds[id] = nil end
+load_mod()
+offhand_screen_view.update(player)
+hand_id = player:find_hud("offhand_screen_view_hand")
+ok(player.huds[hand_id].text:find("[combine:4x12:-44,-20=", 1, true) ~= nil,
+    "32-layout skins crop the right arm")
+ok(player.huds[hand_id].text:find("transformFX", 1, true) ~= nil,
+    "the right arm is mirrored into a left hand")
+overrides["offhand_screen_hand_skin_layout"] = nil
+overrides["offhand_screen_hand"] = false
+offhand_screen_view = nil
+for id in pairs(player.huds) do player.huds[id] = nil end
 load_mod()
 
 -- ==== fallback without minetest.inventorycube ======================
