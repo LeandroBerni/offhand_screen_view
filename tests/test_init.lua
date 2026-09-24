@@ -132,6 +132,10 @@ function minetest.register_on_mods_loaded(f) mods_loaded_cb = f end
 
 local players = {}
 function minetest.get_connected_players() return players end
+
+-- ambient light reported to the mod (15 = daylight)
+local world_light = 15
+function minetest.get_node_light(_) return world_light end
 function minetest.get_player_by_name(name)
     for _, p in ipairs(players) do
         if p.pname == name and not p.left then return p end
@@ -195,7 +199,9 @@ local function new_player(name)
         get_stack = function(self, list) return self.stacks[list] or ItemStack("") end,
     }
     function p:get_inventory() return self.inv end
-    p.props = {textures = {"character.png"}}
+    p.pos = {x = 0, y = 0, z = 0}
+    function p:get_pos() return self.pos end
+    p.props = {textures = {"character.png"}, eye_height = 1.625}
     function p:get_properties() return self.props end
     function p:hud_add(def)
         assert(def.hud_elem_type or def.type, "hud_add without element type")
@@ -492,6 +498,34 @@ overrides["offhand_screen_hand"] = false
 offhand_screen_view = nil
 for id in pairs(player.huds) do player.huds[id] = nil end
 load_mod()
+
+-- ==== ambient light darkens the held item =========================
+offhand.stacks.tester = ItemStack("default:stone", 3)
+offhand_screen_view.update(player)
+local licon = player:find_hud("offhand_screen_view_icon")
+ok(player.huds[licon].text:find("multiply", 1, true) == nil,
+    "daylight keeps the icon fully bright")
+
+world_light = 0
+offhand_screen_view.update(player)
+ok(player.huds[licon].text:find("^[multiply:#000000", 1, true) ~= nil,
+    "pitch darkness multiplies the icon by black")
+local lcount = player:find_hud("offhand_screen_view_count")
+eq(player.huds[lcount].number, 0x000000, "the stack counter darkens too")
+
+world_light = 8
+offhand_screen_view.update(player)
+ok(player.huds[licon].text:find("^[multiply:#888888", 1, true) ~= nil,
+    "a mid light level multiplies by mid gray")
+
+on_globalstep(0.41)
+ok(player.huds[licon].text:find("^[multiply:#888888", 1, true) ~= nil,
+    "spinning frames keep the ambient-light modifier")
+
+world_light = 15
+offhand_screen_view.update(player)
+ok(player.huds[licon].text:find("multiply", 1, true) == nil,
+    "back to daylight removes the modifier")
 
 -- ==== fallback without minetest.inventorycube ======================
 local saved = minetest.inventorycube

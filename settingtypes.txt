@@ -50,6 +50,10 @@ offhand_screen_hand_skin_layout (Skin layout, 64 or 32) int 64 32 64
 # Length of the drawn hand in pixels (thickness is a third of this).
 offhand_screen_hand_size (Hand length in pixels) int 240 24 1024
 
+# Darken the icon/hand/counter to match the ambient light (night, caves,
+# torches). HUD overlays do not receive world lighting on their own.
+offhand_screen_light (Match the icon brightness to the ambient light) bool true
+
 # The base "offhand" mod also draws its own small icon next to the hotbar.
 # OFF by default so both stay visible; enable to hide the base one.
 offhand_screen_hide_base_icon (Hide the base offhand mod's icon next to the hotbar) bool false

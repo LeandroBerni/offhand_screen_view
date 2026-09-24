@@ -76,6 +76,7 @@ local first_person_only = get_bool("offhand_screen_first_person_only", true)
 local use_hand    = get_bool("offhand_screen_hand", true)
 local hand_layout = math.floor(get_number("offhand_screen_hand_skin_layout", 64))
 local hand_len    = math.floor(get_number("offhand_screen_hand_size", 240))
+local use_light   = get_bool("offhand_screen_light", true)
 
 if icon_px < 8 then icon_px = 8 end
 if bg_pad < 0 then bg_pad = 0 end
@@ -147,6 +148,55 @@ local function get_player_skin(player)
         return props.textures[1]
     end
     return nil
+end
+
+-- Ambient light at the player's eye height, as a "#gggggg" multiply colour,
+-- or nil when the item should stay fully bright (daylight / feature off).
+-- HUD elements are overlays and never receive world lighting, so without this
+-- the icon would glow at full brightness in caves and at night.
+local function light_hex_at(player)
+    if not use_light then return nil end
+    if not minetest.get_node_light or not player.get_pos then return nil end
+    local ok, pos = pcall(player.get_pos, player)
+    if not ok or not pos then return nil end
+    local eye = 1.625
+    local pok, props = pcall(player.get_properties, player)
+    if pok and props and props.eye_height then
+        eye = props.eye_height
+    end
+    local light = minetest.get_node_light({x = pos.x, y = pos.y + eye, z = pos.z})
+    if type(light) ~= "number" then return nil end
+    if light < 0 then light = 0 end
+    if light > 15 then light = 15 end
+    if light >= 15 then return nil end
+    local g = math.floor(255 * light / 15 + 0.5)
+    return string.format("#%02x%02x%02x", g, g, g)
+end
+
+local function lit(tex, hex)
+    if tex and hex then
+        return tex .. "^[multiply:" .. hex
+    end
+    return tex
+end
+
+local function light_number(hex)
+    if hex then
+        return tonumber(hex:sub(2), 16)
+    end
+    return 0xFFFFFF
+end
+
+-- re-apply the current ambient light to every light-sensitive layer
+local function apply_light(player, data)
+    player:hud_change(data.icon, "text",
+        lit(data.frames[data.frame_i] or "", data.light_hex))
+    if data.hand then
+        player:hud_change(data.hand, "text", lit(data.hand_tex or "", data.light_hex))
+    end
+    if data.count then
+        player:hud_change(data.count, "number", light_number(data.light_hex))
+    end
 end
 
 -- Builds the left-hand layer by CROPPING the player's own skin: the front face
@@ -343,7 +393,7 @@ local function set_item(player, data, itemname)
     data.frames = offhand_screen_view.build_icon_frames(itemname) or {}
     data.frame_i = 1
     data.itemname = itemname
-    player:hud_change(data.icon, "text", data.frames[1] or "")
+    player:hud_change(data.icon, "text", lit(data.frames[1] or "", data.light_hex))
     if data.shadow then
         player:hud_change(data.shadow, "text", silhouette(data.frames[1] or ""))
     end
@@ -385,14 +435,15 @@ function offhand_screen_view.update(player)
 
     if not data then
         data = {itemname = "", count_n = count}
+        data.light_hex = light_hex_at(player)
         if show_bg then
             data.bg = add_bg_hud(player)
         end
         local skin = get_player_skin(player)
         data.skin = skin or ""
         if use_hand and skin and skin ~= "" then
-            data.hand = add_hand_hud(player,
-                offhand_screen_view.build_hand_texture(skin, hand_layout))
+            data.hand_tex = offhand_screen_view.build_hand_texture(skin, hand_layout)
+            data.hand = add_hand_hud(player, lit(data.hand_tex, data.light_hex))
         end
         if use_shadow then
             data.shadow = add_shadow_hud(player, "unknown_item.png")
@@ -401,6 +452,9 @@ function offhand_screen_view.update(player)
         set_item(player, data, itemname)
         if show_count and count > 1 then
             data.count = add_count_hud(player, count)
+            if data.light_hex then
+                player:hud_change(data.count, "number", light_number(data.light_hex))
+            end
         end
         huds[pname] = data
         return
@@ -430,12 +484,19 @@ function offhand_screen_view.update(player)
     if skin_name ~= data.skin then
         data.skin = skin_name
         if data.hand then
-            player:hud_change(data.hand, "text",
-                offhand_screen_view.build_hand_texture(skin_name, hand_layout) or "")
+            data.hand_tex = offhand_screen_view.build_hand_texture(skin_name, hand_layout)
+            player:hud_change(data.hand, "text", lit(data.hand_tex or "", data.light_hex))
         elseif use_hand and skin_name ~= "" then
-            data.hand = add_hand_hud(player,
-                offhand_screen_view.build_hand_texture(skin_name, hand_layout))
+            data.hand_tex = offhand_screen_view.build_hand_texture(skin_name, hand_layout)
+            data.hand = add_hand_hud(player, lit(data.hand_tex, data.light_hex))
         end
+    end
+
+    -- follow the ambient light (night, caves, torches...)
+    local hex = light_hex_at(player)
+    if hex ~= data.light_hex then
+        data.light_hex = hex
+        apply_light(player, data)
     end
 end
 
@@ -446,7 +507,7 @@ function offhand_screen_view.spin(player)
     if not data or not data.frames or #data.frames < 2 then return end
     data.frame_i = data.frame_i % #data.frames + 1
     local frame = data.frames[data.frame_i]
-    player:hud_change(data.icon, "text", frame)
+    player:hud_change(data.icon, "text", lit(frame, data.light_hex))
     if data.shadow then
         player:hud_change(data.shadow, "text", silhouette(frame))
     end

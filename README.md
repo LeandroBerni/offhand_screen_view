@@ -47,6 +47,11 @@ mientras que en la mano principal el motor extruye un objeto 3D.
    no es primera persona, el servidor elimina todos los elementos HUD del
    jugador; al volver a primera persona los recrea. Sin el mod cliente el
    icono se ve siempre (comportamiento anterior).
+7. **Iluminación ambiental.** Los elementos de HUD no reciben la luz del mundo
+   por sí solos, así que el mod muestrea la luz a la altura de los ojos del
+   jugador (`minetest.get_node_light`) y oscurece ítem, mano y contador con
+   `^[multiply` para que de noche o en una cueva no brillen a full
+   (`offhand_screen_light`, activado por defecto).
 
 ## Por qué no es un objeto 3D de verdad en primera persona
 
@@ -101,6 +106,7 @@ las vistas. También podés desactivar el ocultado con
 | `offhand_screen_hand` | `true` | Dibujar la mano del jugador (recortada de su skin) bajo el ítem. |
 | `offhand_screen_hand_skin_layout` | `64` | Layout de skin: `64` (64x64) o `32` (64x32 viejas). |
 | `offhand_screen_hand_size` | `240` | Largo de la mano en píxeles. |
+| `offhand_screen_light` | `true` | Oscurecer ítem/mano/contador según la luz ambiental. |
 | `offhand_screen_hide_base_icon` | `false` | Esconder el icono del mod base. |
 
 ## API
