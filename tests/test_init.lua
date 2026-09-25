@@ -43,6 +43,7 @@ local overrides = {}
 overrides["offhand_screen_icon_size"] = "64"      -- keep expectations simple
 overrides["offhand_screen_show_background"] = true -- exercise the bg element
 overrides["offhand_screen_hand"] = false -- the hand layer has its own section
+overrides["offhand_screen_wield_view"] = false -- exact plain textures in most tests
 
 minetest = {}
 
@@ -526,6 +527,38 @@ world_light = 15
 offhand_screen_view.update(player)
 ok(player.huds[licon].text:find("multiply", 1, true) == nil,
     "back to daylight removes the modifier")
+
+-- ==== wield-view shear (left hand tilted like the main hand) ======
+local wt = offhand_screen_view.build_wield_texture("x.png^[resize:64x64")
+ok(wt:find("[combine:86x64:22,0=", 1, true) == 1,
+    "the wield texture is a sheared combine canvas")
+ok(wt:find("^[verticalframe:20:0", 1, true) ~= nil, "strips are vertical frames")
+ok(wt:find(":0,57=", 1, true) ~= nil,
+    "the bottom strip stays at the lower-left corner")
+
+overrides["offhand_screen_wield_view"] = true
+offhand_screen_view = nil
+for id in pairs(player.huds) do player.huds[id] = nil end -- engine keeps HUDs across reloads; the fake does not
+load_mod()
+offhand.stacks.tester = ItemStack("default:torch", 1)
+offhand_screen_view.update(player)
+local wicon = player:find_hud("offhand_screen_view_icon")
+local wshadow = player:find_hud("offhand_screen_view_shadow")
+ok(player.huds[wicon].text:find("[combine:86x64:22,0=", 1, true) == 1,
+    "the HUD icon uses the sheared wield view")
+ok(player.huds[wshadow].text:find("verticalframe", 1, true) ~= nil
+    and player.huds[wshadow].text:find("multiply:#000000", 1, true) ~= nil,
+    "the shadow follows the sheared silhouette")
+
+-- spinning keeps the shear
+on_globalstep(0.41)
+ok(player.huds[wicon].text:find("[combine:86x64:22,0=", 1, true) == 1,
+    "spinning frames stay sheared")
+
+overrides["offhand_screen_wield_view"] = false
+offhand_screen_view = nil
+for id in pairs(player.huds) do player.huds[id] = nil end
+load_mod()
 
 -- ==== fallback without minetest.inventorycube ======================
 local saved = minetest.inventorycube

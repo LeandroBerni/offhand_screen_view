@@ -77,6 +77,7 @@ local use_hand    = get_bool("offhand_screen_hand", true)
 local hand_layout = math.floor(get_number("offhand_screen_hand_skin_layout", 64))
 local hand_len    = math.floor(get_number("offhand_screen_hand_size", 240))
 local use_light   = get_bool("offhand_screen_light", true)
+local use_wield   = get_bool("offhand_screen_wield_view", true)
 
 if icon_px < 8 then icon_px = 8 end
 if bg_pad < 0 then bg_pad = 0 end
@@ -136,8 +137,47 @@ local function normalized(tex)
     return tex .. "^[resize:" .. icon_px .. "x" .. icon_px
 end
 
+-- Fakes the engine's first-person wield-view tilt for the LEFT hand: HUD
+-- images cannot be rotated by arbitrary angles, so the icon is cut into
+-- horizontal strips (^[verticalframe) that get shifted progressively inside a
+-- ^[combine canvas. The top leans toward the screen centre (mirroring the
+-- main-hand wield model) and the handle ends at the lower-left corner.
+local WIELD_STRIPS = 20
+local WIELD_SHEAR  = 0.35
+
+function offhand_screen_view.build_wield_texture(tex)
+    if not tex or tex == "" then
+        return tex
+    end
+    local shear = math.floor(icon_px * WIELD_SHEAR)
+    local fh = math.floor(icon_px / WIELD_STRIPS)
+    if fh < 1 then fh = 1 end
+    local parts = {}
+    for i = 0, WIELD_STRIPS - 1 do
+        local y = i * fh
+        if y >= icon_px then break end
+        local x = shear - math.floor((shear * i) / (WIELD_STRIPS - 1))
+        parts[#parts + 1] = x .. "," .. y .. "=" ..
+            tex .. "^[verticalframe:" .. WIELD_STRIPS .. ":" .. i
+    end
+    return "[combine:" .. (icon_px + shear) .. "x" .. icon_px .. ":" ..
+        table.concat(parts, ":")
+end
+
 local function silhouette(tex)
     return tex .. "^[multiply:#000000^[opacity:90"
+end
+
+-- the texture actually put on the icon HUD element (plain or wield-sheared)
+local function icon_tex(frame)
+    if use_wield then
+        return offhand_screen_view.build_wield_texture(frame)
+    end
+    return frame
+end
+
+local function shadow_tex(frame)
+    return icon_tex(silhouette(frame))
 end
 
 -- The player's current skin texture name, or nil.
@@ -190,7 +230,7 @@ end
 -- re-apply the current ambient light to every light-sensitive layer
 local function apply_light(player, data)
     player:hud_change(data.icon, "text",
-        lit(data.frames[data.frame_i] or "", data.light_hex))
+        lit(icon_tex(data.frames[data.frame_i] or ""), data.light_hex))
     if data.hand then
         player:hud_change(data.hand, "text", lit(data.hand_tex or "", data.light_hex))
     end
@@ -327,7 +367,7 @@ local function add_shadow_hud(player, icon)
         offset    = {x = 10, y = 10},
         alignment = {x = 0, y = 0},
         scale     = {x = 1, y = 1},
-        text      = silhouette(icon),
+        text      = shadow_tex(icon),
         z_index   = 100,
     })
 end
@@ -393,9 +433,9 @@ local function set_item(player, data, itemname)
     data.frames = offhand_screen_view.build_icon_frames(itemname) or {}
     data.frame_i = 1
     data.itemname = itemname
-    player:hud_change(data.icon, "text", lit(data.frames[1] or "", data.light_hex))
+    player:hud_change(data.icon, "text", lit(icon_tex(data.frames[1] or ""), data.light_hex))
     if data.shadow then
-        player:hud_change(data.shadow, "text", silhouette(data.frames[1] or ""))
+        player:hud_change(data.shadow, "text", lit(shadow_tex(data.frames[1] or ""), data.light_hex))
     end
 end
 
@@ -507,9 +547,9 @@ function offhand_screen_view.spin(player)
     if not data or not data.frames or #data.frames < 2 then return end
     data.frame_i = data.frame_i % #data.frames + 1
     local frame = data.frames[data.frame_i]
-    player:hud_change(data.icon, "text", lit(frame, data.light_hex))
+    player:hud_change(data.icon, "text", lit(icon_tex(frame), data.light_hex))
     if data.shadow then
-        player:hud_change(data.shadow, "text", silhouette(frame))
+        player:hud_change(data.shadow, "text", lit(shadow_tex(frame), data.light_hex))
     end
 end
 

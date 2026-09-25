@@ -54,6 +54,11 @@ offhand_screen_hand_size (Hand length in pixels) int 240 24 1024
 # torches). HUD overlays do not receive world lighting on their own.
 offhand_screen_light (Match the icon brightness to the ambient light) bool true
 
+# Shear the icon into the engine's wield-view tilt (top leaning toward the
+# screen centre, handle at the lower-left corner), so the left hand reads like
+# the main hand's wield model. Disable for a flat, upright icon.
+offhand_screen_wield_view (Tilt the icon like the engine's wield view) bool true
+
 # The base "offhand" mod also draws its own small icon next to the hotbar.
 # OFF by default so both stay visible; enable to hide the base one.
 offhand_screen_hide_base_icon (Hide the base offhand mod's icon next to the hotbar) bool false

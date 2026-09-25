@@ -52,6 +52,12 @@ mientras que en la mano principal el motor extruye un objeto 3D.
    jugador (`minetest.get_node_light`) y oscurece ítem, mano y contador con
    `^[multiply` para que de noche o en una cueva no brillen a full
    (`offhand_screen_light`, activado por defecto).
+8. **Inclinación tipo wield.** Los elementos HUD no se pueden rotar en ángulos
+   arbitrarios, así que el ítem se corta en 20 franjas horizontales
+   (`^[verticalframe`) que se desplazan progresivamente dentro de un
+   `^[combine`: la punta queda inclinada hacia el centro de la pantalla y el
+   mango hacia la esquina inferior izquierda, espejando el modelo wield de la
+   mano principal (`offhand_screen_wield_view`, activado por defecto).
 
 ## Por qué no es un objeto 3D de verdad en primera persona
 
@@ -107,6 +113,7 @@ las vistas. También podés desactivar el ocultado con
 | `offhand_screen_hand_skin_layout` | `64` | Layout de skin: `64` (64x64) o `32` (64x32 viejas). |
 | `offhand_screen_hand_size` | `240` | Largo de la mano en píxeles. |
 | `offhand_screen_light` | `true` | Oscurecer ítem/mano/contador según la luz ambiental. |
+| `offhand_screen_wield_view` | `true` | Inclinar el ítem como el modelo wield de la mano principal. |
 | `offhand_screen_hide_base_icon` | `false` | Esconder el icono del mod base. |
 
 ## API
