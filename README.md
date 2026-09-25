@@ -29,8 +29,9 @@ mientras que en la mano principal el motor extruye un objeto 3D.
    plano recorta el brazo directo de la textura de skin (prueba los layouts
    64x64 y 64x32 a la vez: el que exista gana), se le aplica una máscara de
    sombreado (`textures/offhand_screen_view_hand_shade.png`) para que no quede
-   plano, y se rota/escala. Funciona con cualquier skin y se reconstruye solo
-   si el jugador se la cambia.
+   plano, y se dibuja **vertical** (como el brazo de la mano principal del
+   motor) con una leve inclinación, colgando del ancla del ítem. Funciona con
+   cualquier skin y se reconstruye solo si el jugador se la cambia.
 3. **Posición de mano izquierda.** El icono va anclado abajo a la izquierda,
    grande (380 px por defecto), espejando la vista de la mano principal del
    motor. La posición es una *fracción de pantalla* (`pos_x`, `pos_y`), así
@@ -100,7 +101,7 @@ las vistas. También podés desactivar el ocultado con
 | --- | --- | --- |
 | `offhand_screen_icon_size` | `380` | Tamaño del icono en píxeles. |
 | `offhand_screen_bg_padding` | `6` | Píxeles de fondo oscuro (si está activo). |
-| `offhand_screen_pos_x` | `0.12` | Posición X, fracción del ancho (0..1). |
+| `offhand_screen_pos_x` | `0.16` | Posición X, fracción del ancho (0..1). |
 | `offhand_screen_pos_y` | `0.88` | Posición Y, fracción del alto (0..1). |
 | `offhand_screen_show_icon` | `true` | Mostrar el icono de este mod. |
 | `offhand_screen_first_person_only` | `true` | Ocultar el HUD fuera de primera persona (requiere el mod cliente). |

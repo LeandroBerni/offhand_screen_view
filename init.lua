@@ -69,7 +69,7 @@ end
 -- offsets below stay consistent.
 local icon_px     = math.floor(get_number("offhand_screen_icon_size", 380))
 local bg_pad      = math.floor(get_number("offhand_screen_bg_padding", 6))
-local pos_x       = get_number("offhand_screen_pos_x", 0.12)
+local pos_x       = get_number("offhand_screen_pos_x", 0.16)
 local pos_y       = get_number("offhand_screen_pos_y", 0.88)
 local show_icon   = get_bool("offhand_screen_show_icon", true)
 local show_bg     = get_bool("offhand_screen_show_background", false)
@@ -234,7 +234,7 @@ function offhand_screen_view.build_hand_texture(skin, layout)
     end
     return "[combine:4x12:" .. table.concat(layers, ":") ..
         "^offhand_screen_view_hand_shade.png" ..
-        "^[transformR270^[resize:" .. hand_len .. "x" .. math.floor(hand_len / 3)
+        "^[resize:" .. math.floor(hand_len / 3) .. "x" .. hand_len
 end
 
 -- Ambient light at the player's eye height, as a "#gggggg" multiply colour,
@@ -360,19 +360,48 @@ local function add_strip_huds(player, frame, sil, z, name)
     return ids
 end
 
--- the hand layer sits a bit below/behind the item so the item rests on the
--- palm; it bobs together with the item
-local function add_hand_hud(player, tex)
-    return player:hud_add({
-        hud_elem_type = "image",
-        type = "image",
-        name = "offhand_screen_view_hand",
-        position  = {x = pos_x - 0.02, y = pos_y + 0.07},
-        alignment = {x = 0, y = 0},
-        scale     = {x = 1, y = 1},
-        text      = tex,
-        z_index   = 99,
-    })
+-- the hand is drawn VERTICAL like the engine's own first-person arm, with a
+-- slight right-lean, in a few horizontal strips so it can shear; its top ends
+-- at the item anchor so the item rests on the palm
+local HAND_STRIPS = 4
+
+local function hand_strip_offset(i)
+    local w = math.floor(hand_len / 3)
+    local shear = math.floor(hand_len * 0.18)
+    return {
+        x = math.floor(shear / 2 - (shear * i) / (HAND_STRIPS - 1)) - math.floor(w / 2),
+        y = math.floor((hand_len * i) / HAND_STRIPS),
+    }
+end
+
+local function hand_strip_tex(tex, i, hex)
+    if not tex or tex == "" then
+        return ""
+    end
+    local t = tex .. "^[verticalframe:" .. HAND_STRIPS .. ":" .. i
+    if hex then
+        t = t .. "^[multiply:" .. hex
+    end
+    return t
+end
+
+local function add_hand_huds(player, tex, hex)
+    local ids = {}
+    for i = 0, HAND_STRIPS - 1 do
+        local off = hand_strip_offset(i)
+        ids[#ids + 1] = player:hud_add({
+            hud_elem_type = "image",
+            type = "image",
+            name = "offhand_screen_view_hand",
+            position  = {x = pos_x, y = pos_y},
+            alignment = {x = -1, y = -1},
+            offset    = {x = off.x, y = off.y},
+            scale     = {x = 1, y = 1},
+            text      = hand_strip_tex(tex, i, hex),
+            z_index   = 99,
+        })
+    end
+    return ids
 end
 
 local function add_bg_hud(player)
@@ -412,7 +441,10 @@ local function remove_huds(player)
             player:hud_remove(id)
         end
     end
-    for _, key in ipairs({"bg", "hand", "count"}) do
+    for _, id in ipairs(data.hand or {}) do
+        player:hud_remove(id)
+    end
+    for _, key in ipairs({"bg", "count"}) do
         if data[key] then
             player:hud_remove(data[key])
         end
@@ -433,8 +465,10 @@ local function apply_light(player, data)
         end
     end
     if data.hand then
-        player:hud_change(data.hand, "text",
-            (data.hand_tex or "") .. (data.light_hex and "^[multiply:" .. data.light_hex or ""))
+        for i = 0, HAND_STRIPS - 1 do
+            player:hud_change(data.hand[i + 1], "text",
+                hand_strip_tex(data.hand_tex, i, data.light_hex))
+        end
     end
     if data.count then
         player:hud_change(data.count, "number", light_number(data.light_hex))
@@ -517,11 +551,7 @@ function offhand_screen_view.update(player)
         data.skin = skin or ""
         if use_hand and skin and skin ~= "" then
             data.hand_tex = offhand_screen_view.build_hand_texture(skin, hand_layout)
-            local tex = data.hand_tex
-            if data.light_hex then
-                tex = tex .. "^[multiply:" .. data.light_hex
-            end
-            data.hand = add_hand_hud(player, tex)
+            data.hand = add_hand_huds(player, data.hand_tex, data.light_hex)
         end
         data.frames = offhand_screen_view.build_icon_frames(itemname) or {}
         data.frame_i = 1
@@ -577,9 +607,12 @@ function offhand_screen_view.update(player)
             tex = tex .. "^[multiply:" .. data.light_hex
         end
         if data.hand then
-            player:hud_change(data.hand, "text", tex or "")
+            for i = 0, HAND_STRIPS - 1 do
+                player:hud_change(data.hand[i + 1], "text",
+                    hand_strip_tex(tex, i, data.light_hex))
+            end
         elseif use_hand and skin_name ~= "" and tex then
-            data.hand = add_hand_hud(player, tex)
+            data.hand = add_hand_huds(player, tex, data.light_hex)
         end
     end
 
@@ -638,7 +671,11 @@ function offhand_screen_view.bob(player, clock)
         end
     end
     if data.hand then
-        player:hud_change(data.hand, "offset", {x = bx, y = by})
+        for i = 0, HAND_STRIPS - 1 do
+            local off = hand_strip_offset(i)
+            player:hud_change(data.hand[i + 1], "offset",
+                {x = off.x + bx, y = off.y + by})
+        end
     end
     if data.count then
         player:hud_change(data.count, "offset",

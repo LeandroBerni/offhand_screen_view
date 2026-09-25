@@ -7,9 +7,9 @@ offhand_screen_icon_size (Offhand icon size in pixels) int 380 8 1024
 offhand_screen_bg_padding (Background padding around the icon) int 6 0 64
 
 # Anchor position as a FRACTION of the screen (0..1), like all HUD positions.
-# Defaults put the icon in the lower-left corner (opposite side of the
-# main-hand wield view).
-offhand_screen_pos_x (Offhand icon X position, fraction of screen width) float 0.12 0 1
+# Defaults put the (sheared, wider) icon in the lower-left corner, opposite
+# side of the main-hand wield view; the hand hangs from the same anchor.
+offhand_screen_pos_x (Offhand icon X position, fraction of screen width) float 0.16 0 1
 offhand_screen_pos_y (Offhand icon Y position, fraction of screen height) float 0.88 0 1
 
 offhand_screen_show_icon (Show the on-screen offhand icon) bool true

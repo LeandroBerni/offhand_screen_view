@@ -468,13 +468,22 @@ for id in pairs(player.huds) do player.huds[id] = nil end -- engine keeps HUDs a
 load_mod()
 offhand.stacks.tester = ItemStack("default:stone", 1)
 offhand_screen_view.update(player)
-local hand_id = player:find_hud("offhand_screen_view_hand")
+-- the top strip of the hand (pairs() order is not guaranteed, find it by y)
+local hand_id, hand0
+for id, def in pairs(player.huds) do
+    if def.name == "offhand_screen_view_hand" then
+        hand_id = hand_id or id
+        if def.offset.y == 0 then hand0 = id end
+    end
+end
 ok(hand_id ~= nil, "the hand layer is drawn when enabled")
-eq(player.huds[hand_id].text,
+eq(player.huds[hand0].text,
     "[combine:4x12:-44,-20=character.png:-36,-52=character.png"
-        .. "^offhand_screen_view_hand_shade.png^[transformR270^[resize:240x80",
+        .. "^offhand_screen_view_hand_shade.png^[resize:80x240"
+        .. "^[verticalframe:4:0",
     "auto layout crops both arm variants, 64x64 winning on top")
-eq(player:count_huds(), 4, "bg + hand + shadow + icon")
+eq(player.huds[hand0].offset.x, -19, "the hand top leans toward the centre")
+eq(player:count_huds(), 7, "bg + 4 hand strips + shadow + icon")
 
 -- changing the skin rebuilds the hand on the next update
 player.props.textures = {"fancy_skin.png"}
