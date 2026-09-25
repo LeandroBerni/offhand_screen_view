@@ -517,11 +517,11 @@ eq(player.huds[lcount].number, 0x000000, "the stack counter darkens too")
 
 world_light = 8
 offhand_screen_view.update(player)
-ok(player.huds[licon].text:find("^[multiply:#888888", 1, true) ~= nil,
-    "a mid light level multiplies by mid gray")
+ok(player.huds[licon].text:find("^[multiply:#6d6d6d", 1, true) ~= nil,
+    "a mid light level multiplies by gamma-curved gray")
 
 on_globalstep(0.41)
-ok(player.huds[licon].text:find("^[multiply:#888888", 1, true) ~= nil,
+ok(player.huds[licon].text:find("^[multiply:#6d6d6d", 1, true) ~= nil,
     "spinning frames keep the ambient-light modifier")
 
 world_light = 15
@@ -606,6 +606,23 @@ item_change_cb(solo, ItemStack(""), ItemStack("default:apple"))
 local solo_icon = solo:find_hud("offhand_screen_view_icon")
 eq(solo_icon and solo.huds[solo_icon].text or nil, "default_apple.png^[resize:380x380",
     "item changes flow through the late-bound callback")
+
+-- ==== the client companion must use the CSM ModChannel API ==========
+-- (the server-side names is_writable()/send_message() error on the client)
+local cfile = io.open(mod_root .. "clientmods/offhand_screen_view/init.lua", "r")
+ok(cfile ~= nil, "the client companion mod is part of the mod folder")
+if cfile then
+    local csrc = cfile:read("*a")
+    cfile:close()
+    ok(csrc:find("is_writeable", 1, true) ~= nil,
+        "client mod checks is_writeable()")
+    ok(csrc:find("send_all", 1, true) ~= nil,
+        "client mod sends with send_all()")
+    ok(csrc:find("is_writable") == nil,
+        "no server-side is_writable() left in the client mod")
+    ok(csrc:find("send_message") == nil,
+        "no server-side send_message() left in the client mod")
+end
 
 -- leave the module in its default configuration
 offhand_screen_view = nil

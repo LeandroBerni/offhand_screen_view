@@ -209,6 +209,8 @@ function offhand_screen_view.build_hand_texture(skin, layout)
         "^[resize:" .. math.floor(hand_len / 3) .. "x" .. hand_len
 end
 
+local LIGHT_GAMMA = 1.35
+
 -- Ambient light at the player's eye height, as a "#gggggg" multiply colour,
 -- or nil when the item should stay fully bright (daylight / feature off).
 -- HUD elements are overlays and never receive world lighting, so without this
@@ -228,7 +230,10 @@ local function light_hex_at(player)
     if light < 0 then light = 0 end
     if light > 15 then light = 15 end
     if light >= 15 then return nil end
-    local g = math.floor(255 * light / 15 + 0.5)
+    -- mild gamma curve: a purely linear conversion leaves mid light levels
+    -- looking artificially bright (light 8 read as 53% gray, almost lit)
+    local b = (light / 15) ^ LIGHT_GAMMA
+    local g = math.floor(255 * b + 0.5)
     return string.format("#%02x%02x%02x", g, g, g)
 end
 

@@ -43,7 +43,7 @@ core.register_globalstep(function()
         return
     end
 
-    if not channel:is_writable() then
+    if not channel:is_writeable() then
         -- channel not ready yet (or temporarily dropped): forget the last
         -- reported mode so it is sent again once the channel is usable
         last_mode = nil
@@ -55,7 +55,7 @@ core.register_globalstep(function()
     if mode == last_mode then return end
     last_mode = mode
     sent_count = sent_count + 1
-    channel:send_message("FP " .. tostring(mode))
+    channel:send_all("FP " .. tostring(mode))
 end)
 
 -- diagnostic command: /osv_status
@@ -73,7 +73,7 @@ core.register_chatcommand("osv_status", {
             state = "este cliente no tiene mod channels"
         elseif not channel then
             state = "canal todavia no unido"
-        elseif not channel:is_writable() then
+        elseif not channel:is_writeable() then
             state = "canal unido pero NO escribible: falta "
                 .. "enable_mod_channels = true en el servidor/minetest.conf"
         else
