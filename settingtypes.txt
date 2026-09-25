@@ -47,8 +47,9 @@ offhand_screen_hand (Draw the player's hand under the item) bool false
 
 # Which arm crop to use from the skin: 0 = auto (64x32 and 64x64 crops at
 # once, whichever exists wins), 64 = only the 64x64 left arm, 32 = only the
-# old 64x32 right arm.
-offhand_screen_hand_skin_layout (Skin layout: 0 auto, 64 or 32) int 0 0 64
+# old 64x32 right arm. The enum type gives a dropdown with just these three
+# options instead of a free numeric field.
+offhand_screen_hand_skin_layout (Skin layout) enum 0 0,32,64
 
 # Length of the drawn hand in pixels (thickness is a third of this).
 offhand_screen_hand_size (Hand length in pixels) int 240 24 1024

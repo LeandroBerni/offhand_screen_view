@@ -389,8 +389,18 @@ offhand_screen_view.hide_base_hud(player)
 for key, id in pairs(base_ids) do
     eq(player.huds[id].offset.x, -100000, "base hud '" .. key .. "' parked offscreen")
 end
+-- a base mod that keys its state by player name is found as well
+offhand[player] = nil
+for _, id in pairs(base_ids) do
+    player.huds[id] = {name = "base", offset = {x = 0, y = 0}}
+end
+offhand["tester"] = {hud = base_ids}
+offhand_screen_view.hide_base_hud(player)
+eq(player.huds[11].offset.x, -100000, "name-keyed base mod state is found too")
+
 overrides["offhand_screen_hide_base_icon"] = nil
 offhand[player] = nil
+offhand["tester"] = nil
 offhand_screen_view = nil
 load_mod()
 
@@ -622,6 +632,32 @@ if cfile then
         "no server-side is_writable() left in the client mod")
     ok(csrc:find("send_message") == nil,
         "no server-side send_message() left in the client mod")
+end
+
+-- ==== settingtypes uses an enum for the skin layout ================
+local stfile = io.open(mod_root .. "settingtypes.txt", "r")
+ok(stfile ~= nil, "settingtypes.txt is part of the mod folder")
+if stfile then
+    local found = false
+    for line in stfile:lines() do
+        if line:find("^offhand_screen_hand_skin_layout ") then
+            found = (line:find(" enum 0 0,32,64$") ~= nil)
+        end
+    end
+    stfile:close()
+    ok(found, "skin layout is an enum 0/32/64 dropdown, not a free number")
+end
+
+-- ==== the bob clock is engine time, not CPU time ===================
+local ifile = io.open(mod_root .. "init.lua", "r")
+ok(ifile ~= nil, "init.lua is readable for source checks")
+if ifile then
+    local isrc = ifile:read("*a")
+    ifile:close()
+    ok(isrc:find("os.clock", 1, true) == nil,
+        "no os.clock() left: the bob clock cannot be CPU time")
+    ok(isrc:find("anim_clock", 1, true) ~= nil,
+        "the bob clock is accumulated from the engine dtime")
 end
 
 -- leave the module in its default configuration

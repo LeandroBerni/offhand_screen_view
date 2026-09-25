@@ -414,7 +414,15 @@ end
 -- so we just park every element far off-screen. Disabled by default.
 function offhand_screen_view.hide_base_hud(player)
     if not hide_base then return end
-    local data = offhand_api and offhand_api[player]
+    -- The t-affeldt / SFENCE fork keys its state table by ObjectRef. That is
+    -- an internal, undocumented detail, so the player name is tried too (a
+    -- future version may switch: ObjectRefs can go stale, names cannot). If
+    -- neither matches, the base mod changed its internals and this silently
+    -- does nothing (no crash, the base icon just stays visible).
+    local data
+    if offhand_api then
+        data = offhand_api[player] or offhand_api[player:get_player_name()]
+    end
     if type(data) ~= "table" or type(data.hud) ~= "table" then return end
     for _, id in pairs(data.hud) do
         if type(id) == "number" then
@@ -668,8 +676,13 @@ end
 local sync_timer = 0
 local spin_timer = 0
 local bob_timer = 0
+-- The C clock() function measures CPU time, not wall time: on a loaded
+-- server the bob would speed up and stutter. The engine's dtime is
+-- accumulated instead.
+local anim_clock = 0
 minetest.register_globalstep(function(dtime)
     sync_timer = sync_timer + dtime
+    anim_clock = anim_clock + dtime
     spin_timer = spin_timer + dtime
     bob_timer = bob_timer + dtime
 
@@ -682,7 +695,6 @@ minetest.register_globalstep(function(dtime)
     if do_spin then spin_timer = 0 end
     if do_bob then bob_timer = 0 end
 
-    local clock = os.clock()
     for _, player in ipairs(minetest.get_connected_players()) do
         if do_sync then
             offhand_screen_view.update(player)
@@ -692,7 +704,7 @@ minetest.register_globalstep(function(dtime)
             offhand_screen_view.spin(player)
         end
         if do_bob then
-            offhand_screen_view.bob(player, clock)
+            offhand_screen_view.bob(player, anim_clock)
         end
     end
 end)

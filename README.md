@@ -75,6 +75,23 @@ mientras que en la mano principal el motor extruye un objeto 3D.
   brazo, y el icono de este mod se oculta automáticamente gracias al mod
   cliente (instalación abajo).
 
+## Limitaciones conocidas
+
+* **Alineación del contador**: el ícono es un elemento `image` y el contador
+  del stack un elemento `text`; el motor los escala con ajustes distintos
+  (`hud_scaling` vs `gui_scaling`, issue luanti-org/luanti#6296). Si tenés
+  esos dos valores diferentes, el número puede quedar desalineado de la
+  esquina del ícono. No hay forma de resolverlo del lado del servidor.
+* **Color por paleta**: el ícono se arma desde la definición base del ítem,
+  sin leer `param2`/paleta/metadata del stack. Ítems coloreados vía paleta
+  (algunos mods de tintes) se muestran con el color base. En MineClone2 /
+  VoxeLibre la lana y el hormigón son ítems separados por color, así que
+  normalmente no se nota.
+* **Ocultar el ícono base** (`offhand_screen_hide_base_icon`) depende de una
+  estructura interna del mod `offhand` (tabla indexada por ObjectRef, con
+  fallback por nombre). Si el mod base cambia sus internos, el ajuste deja de
+  tener efecto sin romper nada.
+
 ## Ocultado automático: instalar el mod cliente
 
 El servidor no tiene ninguna API para saber si estás en primera o tercera
