@@ -336,15 +336,15 @@ eq(player.huds[icon_id].text, "default_tool_steelpick.png^[resize:64x64",
     "icon texture follows the new item")
 eq(player:count_huds(), 3, "stack counter is gone again")
 
--- walking makes the icon sway
+-- walking makes the icon sway (around its strip anchor offset)
 player.velocity = {x = 4, y = 0, z = 0}
 on_globalstep(0.11)
 local off = player.huds[icon_id].offset
-ok(off and (off.x ~= 0 or off.y ~= 0), "the icon bobs while walking")
+ok(off and (off.x ~= -32 or off.y ~= -32), "the icon bobs while walking")
 player.velocity = {x = 0, y = 0, z = 0}
 on_globalstep(0.11)
 off = player.huds[icon_id].offset
-ok(off and off.x == 0 and off.y == 0, "the icon settles when standing still")
+ok(off and off.x == -32 and off.y == -32, "the icon settles when standing still")
 
 -- emptying the offhand removes every element
 offhand.stacks.tester = ItemStack("")
@@ -471,9 +471,9 @@ offhand_screen_view.update(player)
 local hand_id = player:find_hud("offhand_screen_view_hand")
 ok(hand_id ~= nil, "the hand layer is drawn when enabled")
 eq(player.huds[hand_id].text,
-    "[combine:4x12:-36,-52=character.png^offhand_screen_view_hand_shade.png"
-        .. "^[transformR270^[resize:240x80",
-    "the hand is cropped from the left arm of a 64x64 skin")
+    "[combine:4x12:-44,-20=character.png:-36,-52=character.png"
+        .. "^offhand_screen_view_hand_shade.png^[transformR270^[resize:240x80",
+    "auto layout crops both arm variants, 64x64 winning on top")
 eq(player:count_huds(), 4, "bg + hand + shadow + icon")
 
 -- changing the skin rebuilds the hand on the next update
@@ -483,7 +483,7 @@ ok(player.huds[hand_id].text:find("fancy_skin", 1, true) ~= nil,
     "a skin change rebuilds the hand texture")
 player.props.textures = {"character.png"}
 
--- old 64x32 skins mirror the right arm into a left hand
+-- old 64x32 skins: only the right-arm crop is used
 overrides["offhand_screen_hand_skin_layout"] = 32
 offhand_screen_view = nil
 for id in pairs(player.huds) do player.huds[id] = nil end
@@ -492,8 +492,8 @@ offhand_screen_view.update(player)
 hand_id = player:find_hud("offhand_screen_view_hand")
 ok(player.huds[hand_id].text:find("[combine:4x12:-44,-20=", 1, true) ~= nil,
     "32-layout skins crop the right arm")
-ok(player.huds[hand_id].text:find("transformFX", 1, true) ~= nil,
-    "the right arm is mirrored into a left hand")
+ok(player.huds[hand_id].text:find("-36,-52=", 1, true) == nil,
+    "the 64x64 crop is skipped when layout 32 is forced")
 overrides["offhand_screen_hand_skin_layout"] = nil
 overrides["offhand_screen_hand"] = false
 offhand_screen_view = nil
@@ -529,30 +529,40 @@ ok(player.huds[licon].text:find("multiply", 1, true) == nil,
     "back to daylight removes the modifier")
 
 -- ==== wield-view shear (left hand tilted like the main hand) ======
-local wt = offhand_screen_view.build_wield_texture("x.png^[resize:64x64")
-ok(wt:find("[combine:86x64:22,0=", 1, true) == 1,
-    "the wield texture is a sheared combine canvas")
-ok(wt:find("^[verticalframe:20:0", 1, true) ~= nil, "strips are vertical frames")
-ok(wt:find(":0,57=", 1, true) ~= nil,
-    "the bottom strip stays at the lower-left corner")
-
+-- each strip is its own HUD element: ^[verticalframe stays OUTSIDE of any
+-- ^[combine, the only form the engine's texture parser accepts
 overrides["offhand_screen_wield_view"] = true
 offhand_screen_view = nil
 for id in pairs(player.huds) do player.huds[id] = nil end -- engine keeps HUDs across reloads; the fake does not
 load_mod()
-offhand.stacks.tester = ItemStack("default:torch", 1)
+offhand.stacks.tester = ItemStack("default:stone", 1)
 offhand_screen_view.update(player)
-local wicon = player:find_hud("offhand_screen_view_icon")
-local wshadow = player:find_hud("offhand_screen_view_shadow")
-ok(player.huds[wicon].text:find("[combine:86x64:22,0=", 1, true) == 1,
-    "the HUD icon uses the sheared wield view")
-ok(player.huds[wshadow].text:find("verticalframe", 1, true) ~= nil
-    and player.huds[wshadow].text:find("multiply:#000000", 1, true) ~= nil,
-    "the shadow follows the sheared silhouette")
+
+local icon_ids = {}
+local shadow_n = 0
+for id, def in pairs(player.huds) do
+    if def.name == "offhand_screen_view_icon" then
+        icon_ids[#icon_ids + 1] = id
+    elseif def.name == "offhand_screen_view_shadow" then
+        shadow_n = shadow_n + 1
+    end
+end
+table.sort(icon_ids)
+eq(#icon_ids, 10, "the sheared icon is drawn as 10 strip elements")
+eq(shadow_n, 10, "the shadow is sheared in strips too")
+
+local stone1 = "[inventorycube{default_stone.png{default_stone.png{default_stone.png^[resize:64x64"
+local first = player.huds[icon_ids[1]]
+local last = player.huds[icon_ids[10]]
+eq(first.text, stone1 .. "^[verticalframe:10:0", "top strip of the icon")
+ok(last.text:find("^[verticalframe:10:9", 1, true) ~= nil, "bottom strip of the icon")
+eq(first.offset.x, -21, "the top strip leans toward the screen centre")
+eq(last.offset.x, -43, "the bottom strip stays at the lower-left corner")
+eq(first.offset.y, -32, "strips start at the top of the icon")
 
 -- spinning keeps the shear
 on_globalstep(0.41)
-ok(player.huds[wicon].text:find("[combine:86x64:22,0=", 1, true) == 1,
+eq(player.huds[icon_ids[1]].text, stone1 .. "^[verticalframe:10:0",
     "spinning frames stay sheared")
 
 overrides["offhand_screen_wield_view"] = false

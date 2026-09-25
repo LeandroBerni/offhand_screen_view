@@ -43,9 +43,10 @@ offhand_screen_bob (Sway the icon while walking) bool true
 # [combine) under the item, so the item looks held in the palm.
 offhand_screen_hand (Draw the player's hand under the item) bool true
 
-# Skin layout used to find the arm: 64 = 64x64 skins (left arm), 32 = old
-# 64x32 skins (the right arm is mirrored into a left hand).
-offhand_screen_hand_skin_layout (Skin layout, 64 or 32) int 64 32 64
+# Which arm crop to use from the skin: 0 = auto (64x32 and 64x64 crops at
+# once, whichever exists wins), 64 = only the 64x64 left arm, 32 = only the
+# old 64x32 right arm.
+offhand_screen_hand_skin_layout (Skin layout: 0 auto, 64 or 32) int 0 0 64
 
 # Length of the drawn hand in pixels (thickness is a third of this).
 offhand_screen_hand_size (Hand length in pixels) int 240 24 1024

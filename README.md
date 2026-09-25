@@ -25,12 +25,12 @@ mientras que en la mano principal el motor extruye un objeto 3D.
    - tiene una **sombra** suave detrás (`offhand_screen_shadow`),
    - **se balancea** al caminar (`offhand_screen_bob`).
 2. **La mano del jugador, recortada de su skin.** Debajo del ítem se dibuja el
-   brazo izquierdo del propio jugador: se recorta en vivo de su textura de
-   skin con `[combine` (brazo izquierdo en skins 64x64; en las viejas 64x32 se
-   espeja el brazo derecho), se le aplica una máscara de sombreado
-   (`textures/offhand_screen_view_hand_shade.png`) para que no quede plano, y
-   se rota/acompaña el balanceo al caminar. Funciona con cualquier skin y se
-   reconstruye solo si el jugador se la cambia.
+   brazo izquierdo del propio jugador: un único `[combine` con capas de texto
+   plano recorta el brazo directo de la textura de skin (prueba los layouts
+   64x64 y 64x32 a la vez: el que exista gana), se le aplica una máscara de
+   sombreado (`textures/offhand_screen_view_hand_shade.png`) para que no quede
+   plano, y se rota/escala. Funciona con cualquier skin y se reconstruye solo
+   si el jugador se la cambia.
 3. **Posición de mano izquierda.** El icono va anclado abajo a la izquierda,
    grande (380 px por defecto), espejando la vista de la mano principal del
    motor. La posición es una *fracción de pantalla* (`pos_x`, `pos_y`), así
@@ -53,11 +53,13 @@ mientras que en la mano principal el motor extruye un objeto 3D.
    `^[multiply` para que de noche o en una cueva no brillen a full
    (`offhand_screen_light`, activado por defecto).
 8. **Inclinación tipo wield.** Los elementos HUD no se pueden rotar en ángulos
-   arbitrarios, así que el ítem se corta en 20 franjas horizontales
-   (`^[verticalframe`) que se desplazan progresivamente dentro de un
-   `^[combine`: la punta queda inclinada hacia el centro de la pantalla y el
-   mango hacia la esquina inferior izquierda, espejando el modelo wield de la
-   mano principal (`offhand_screen_wield_view`, activado por defecto).
+   arbitrarios y el parser de `^[combine` no acepta modificadores con
+   parámetros dentro de sus capas, así que el ítem se corta en 10 franjas
+   horizontales (`^[verticalframe`) que se dibujan como **elementos HUD
+   separados** con offsets de píxel progresivos: la punta queda inclinada
+   hacia el centro de la pantalla y el mango hacia la esquina inferior
+   izquierda, espejando el modelo wield de la mano principal
+   (`offhand_screen_wield_view`, activado por defecto).
 
 ## Por qué no es un objeto 3D de verdad en primera persona
 
@@ -110,7 +112,7 @@ las vistas. También podés desactivar el ocultado con
 | `offhand_screen_shadow` | `true` | Sombra detrás del icono. |
 | `offhand_screen_bob` | `true` | Balanceo al caminar. |
 | `offhand_screen_hand` | `true` | Dibujar la mano del jugador (recortada de su skin) bajo el ítem. |
-| `offhand_screen_hand_skin_layout` | `64` | Layout de skin: `64` (64x64) o `32` (64x32 viejas). |
+| `offhand_screen_hand_skin_layout` | `0` | Recorte de skin: `0` auto, `64` o `32`. |
 | `offhand_screen_hand_size` | `240` | Largo de la mano en píxeles. |
 | `offhand_screen_light` | `true` | Oscurecer ítem/mano/contador según la luz ambiental. |
 | `offhand_screen_wield_view` | `true` | Inclinar el ítem como el modelo wield de la mano principal. |
