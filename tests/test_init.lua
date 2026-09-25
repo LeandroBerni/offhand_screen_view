@@ -43,7 +43,6 @@ local overrides = {}
 overrides["offhand_screen_icon_size"] = "64"      -- keep expectations simple
 overrides["offhand_screen_show_background"] = true -- exercise the bg element
 overrides["offhand_screen_hand"] = false -- the hand layer has its own section
-overrides["offhand_screen_wield_view"] = false -- exact plain textures in most tests
 
 minetest = {}
 
@@ -336,15 +335,15 @@ eq(player.huds[icon_id].text, "default_tool_steelpick.png^[resize:64x64",
     "icon texture follows the new item")
 eq(player:count_huds(), 3, "stack counter is gone again")
 
--- walking makes the icon sway (around its strip anchor offset)
+-- walking makes the icon sway (around its centred anchor offset)
 player.velocity = {x = 4, y = 0, z = 0}
 on_globalstep(0.11)
 local off = player.huds[icon_id].offset
-ok(off and (off.x ~= -32 or off.y ~= -32), "the icon bobs while walking")
+ok(off and (off.x ~= 0 or off.y ~= 0), "the icon bobs while walking")
 player.velocity = {x = 0, y = 0, z = 0}
 on_globalstep(0.11)
 off = player.huds[icon_id].offset
-ok(off and off.x == -32 and off.y == -32, "the icon settles when standing still")
+ok(off and off.x == 0 and off.y == 0, "the icon settles when standing still")
 
 -- emptying the offhand removes every element
 offhand.stacks.tester = ItemStack("")
@@ -468,22 +467,15 @@ for id in pairs(player.huds) do player.huds[id] = nil end -- engine keeps HUDs a
 load_mod()
 offhand.stacks.tester = ItemStack("default:stone", 1)
 offhand_screen_view.update(player)
--- the top strip of the hand (pairs() order is not guaranteed, find it by y)
-local hand_id, hand0
-for id, def in pairs(player.huds) do
-    if def.name == "offhand_screen_view_hand" then
-        hand_id = hand_id or id
-        if def.offset.y == 0 then hand0 = id end
-    end
-end
+local hand_id = player:find_hud("offhand_screen_view_hand")
 ok(hand_id ~= nil, "the hand layer is drawn when enabled")
-eq(player.huds[hand0].text,
+eq(player.huds[hand_id].text,
     "[combine:4x12:-44,-20=character.png:-36,-52=character.png"
-        .. "^offhand_screen_view_hand_shade.png^[resize:80x240"
-        .. "^[verticalframe:4:0",
+        .. "^offhand_screen_view_hand_shade.png^[resize:80x240",
     "auto layout crops both arm variants, 64x64 winning on top")
-eq(player.huds[hand0].offset.x, -19, "the hand top leans toward the centre")
-eq(player:count_huds(), 7, "bg + 4 hand strips + shadow + icon")
+eq(player.huds[hand_id].alignment.x, -1, "the hand hangs from the anchor downwards")
+eq(player.huds[hand_id].offset.y, 0, "the hand starts at the item anchor")
+eq(player:count_huds(), 4, "bg + hand + shadow + icon")
 
 -- changing the skin rebuilds the hand on the next update
 player.props.textures = {"fancy_skin.png"}
@@ -537,47 +529,28 @@ offhand_screen_view.update(player)
 ok(player.huds[licon].text:find("multiply", 1, true) == nil,
     "back to daylight removes the modifier")
 
--- ==== wield-view shear (left hand tilted like the main hand) ======
--- each strip is its own HUD element: ^[verticalframe stays OUTSIDE of any
--- ^[combine, the only form the engine's texture parser accepts
-overrides["offhand_screen_wield_view"] = true
-offhand_screen_view = nil
-for id in pairs(player.huds) do player.huds[id] = nil end -- engine keeps HUDs across reloads; the fake does not
-load_mod()
-offhand.stacks.tester = ItemStack("default:stone", 1)
-offhand_screen_view.update(player)
-
+-- ==== engine-safe textures, mirrored anchor =======================
+-- the icon is ONE element, centred on the anchor, with no strip/verticalframe
+-- tricks (the real client rendered those as stretched images)
 local icon_ids = {}
-local shadow_n = 0
 for id, def in pairs(player.huds) do
     if def.name == "offhand_screen_view_icon" then
         icon_ids[#icon_ids + 1] = id
-    elseif def.name == "offhand_screen_view_shadow" then
-        shadow_n = shadow_n + 1
     end
 end
-table.sort(icon_ids)
-eq(#icon_ids, 10, "the sheared icon is drawn as 10 strip elements")
-eq(shadow_n, 10, "the shadow is sheared in strips too")
-
-local stone1 = "[inventorycube{default_stone.png{default_stone.png{default_stone.png^[resize:64x64"
-local first = player.huds[icon_ids[1]]
-local last = player.huds[icon_ids[10]]
-eq(first.text, stone1 .. "^[verticalframe:10:0", "top strip of the icon")
-ok(last.text:find("^[verticalframe:10:9", 1, true) ~= nil, "bottom strip of the icon")
-eq(first.offset.x, -21, "the top strip leans toward the screen centre")
-eq(last.offset.x, -43, "the bottom strip stays at the lower-left corner")
-eq(first.offset.y, -32, "strips start at the top of the icon")
-
--- spinning keeps the shear
-on_globalstep(0.41)
-eq(player.huds[icon_ids[1]].text, stone1 .. "^[verticalframe:10:0",
-    "spinning frames stay sheared")
-
-overrides["offhand_screen_wield_view"] = false
-offhand_screen_view = nil
-for id in pairs(player.huds) do player.huds[id] = nil end
-load_mod()
+local icon_id2 = player:find_hud("offhand_screen_view_icon")
+local shadow_id2 = player:find_hud("offhand_screen_view_shadow")
+eq(#icon_ids, 1, "the icon is a single HUD element")
+eq(player.huds[icon_id2].alignment.x, 0, "the icon is centred on the anchor")
+eq(player.huds[icon_id2].offset.x, 0, "no pixel offset shifts the icon")
+eq(player.huds[shadow_id2].offset.x, 10, "the shadow is shifted down/right")
+eq(player.huds[shadow_id2].offset.y, 10, "the shadow is shifted down/right")
+eq(player.huds[icon_id2].position.x, 0.15,
+    "default anchor mirrors the main-hand distance from the edge")
+ok(player.huds[icon_id2].text:find("verticalframe", 1, true) == nil,
+    "no verticalframe crops anywhere near the icon")
+ok(player.huds[shadow_id2].text:find("verticalframe", 1, true) == nil,
+    "no verticalframe crops anywhere near the shadow")
 
 -- ==== fallback without minetest.inventorycube ======================
 local saved = minetest.inventorycube

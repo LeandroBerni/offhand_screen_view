@@ -24,17 +24,18 @@ mientras que en la mano principal el motor extruye un objeto 3D.
      (`offhand_screen_spin`),
    - tiene una **sombra** suave detrás (`offhand_screen_shadow`),
    - **se balancea** al caminar (`offhand_screen_bob`).
-2. **La mano del jugador, recortada de su skin.** Debajo del ítem se dibuja el
-   brazo izquierdo del propio jugador: un único `[combine` con capas de texto
-   plano recorta el brazo directo de la textura de skin (prueba los layouts
-   64x64 y 64x32 a la vez: el que exista gana), se le aplica una máscara de
-   sombreado (`textures/offhand_screen_view_hand_shade.png`) para que no quede
-   plano, y se dibuja **vertical** (como el brazo de la mano principal del
-   motor) con una leve inclinación, colgando del ancla del ítem. Funciona con
-   cualquier skin y se reconstruye solo si el jugador se la cambia.
+2. **La mano del jugador (opcional), recortada de su skin.** Debajo del ítem
+   puede dibujarse el brazo izquierdo del propio jugador (`offhand_screen_hand`,
+   **apagado por defecto**): un único `[combine` con capas de texto plano
+   recorta el brazo directo de la textura de skin (prueba los layouts 64x64 y
+   64x32 a la vez: el que exista gana), se le aplica una máscara de sombreado
+   (`textures/offhand_screen_view_hand_shade.png`) y queda como una tira
+   **vertical** colgando del ancla del ítem. Funciona con cualquier skin y se
+   reconstruye solo si el jugador se la cambia.
 3. **Posición de mano izquierda.** El icono va anclado abajo a la izquierda,
-   grande (380 px por defecto), espejando la vista de la mano principal del
-   motor. La posición es una *fracción de pantalla* (`pos_x`, `pos_y`), así
+   grande (380 px por defecto), **a la misma distancia del borde que la vista
+   wield de la mano principal** (que está abajo a la derecha). La posición es
+   una *fracción de pantalla* (`offhand_screen_x`, `offhand_screen_y`), así
    funciona en cualquier resolución.
 4. **Contador de items** en la esquina, como en Minecraft.
 5. Opcionalmente **esconde el icono del mod base** junto al hotbar
@@ -53,14 +54,12 @@ mientras que en la mano principal el motor extruye un objeto 3D.
    jugador (`minetest.get_node_light`) y oscurece ítem, mano y contador con
    `^[multiply` para que de noche o en una cueva no brillen a full
    (`offhand_screen_light`, activado por defecto).
-8. **Inclinación tipo wield.** Los elementos HUD no se pueden rotar en ángulos
-   arbitrarios y el parser de `^[combine` no acepta modificadores con
-   parámetros dentro de sus capas, así que el ítem se corta en 10 franjas
-   horizontales (`^[verticalframe`) que se dibujan como **elementos HUD
-   separados** con offsets de píxel progresivos: la punta queda inclinada
-   hacia el centro de la pantalla y el mango hacia la esquina inferior
-   izquierda, espejando el modelo wield de la mano principal
-   (`offhand_screen_wield_view`, activado por defecto).
+8. **Solo texturas seguras para el motor.** Cada capa es UN elemento HUD:
+   para el ítem solo se usan `[inventorycube` y cadenas secuenciales de
+   `^[resize`/`^[multiply`/`^[opacity`, y para la mano un `[combine` con
+   nombres de capa planos. Construcciones como `^[verticalframe` (que este
+   mod usó antes para inclinar el ítem) el cliente real las renderiza como
+   imágenes **estiradas**, así que fueron eliminadas por completo.
 
 ## Por qué no es un objeto 3D de verdad en primera persona
 
@@ -101,8 +100,8 @@ las vistas. También podés desactivar el ocultado con
 | --- | --- | --- |
 | `offhand_screen_icon_size` | `380` | Tamaño del icono en píxeles. |
 | `offhand_screen_bg_padding` | `6` | Píxeles de fondo oscuro (si está activo). |
-| `offhand_screen_pos_x` | `0.22` | Posición X, fracción del ancho (0..1). |
-| `offhand_screen_pos_y` | `0.88` | Posición Y, fracción del alto (0..1). |
+| `offhand_screen_x` | `0.15` | Posición X, fracción del ancho (0..1). Renombrada de `..._pos_x` para que un valor viejo del `minetest.conf` no pise el default. |
+| `offhand_screen_y` | `0.88` | Posición Y, fracción del alto (0..1). |
 | `offhand_screen_show_icon` | `true` | Mostrar el icono de este mod. |
 | `offhand_screen_first_person_only` | `true` | Ocultar el HUD fuera de primera persona (requiere el mod cliente). |
 | `offhand_screen_show_background` | `false` | Fondo oscuro tipo ranura. |
@@ -116,7 +115,6 @@ las vistas. También podés desactivar el ocultado con
 | `offhand_screen_hand_skin_layout` | `0` | Recorte de skin: `0` auto, `64` o `32`. |
 | `offhand_screen_hand_size` | `240` | Largo de la mano en píxeles. |
 | `offhand_screen_light` | `true` | Oscurecer ítem/mano/contador según la luz ambiental. |
-| `offhand_screen_wield_view` | `true` | Inclinar el ítem como el modelo wield de la mano principal. |
 | `offhand_screen_hide_base_icon` | `false` | Esconder el icono del mod base. |
 
 ## API

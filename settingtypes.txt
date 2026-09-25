@@ -7,10 +7,11 @@ offhand_screen_icon_size (Offhand icon size in pixels) int 380 8 1024
 offhand_screen_bg_padding (Background padding around the icon) int 6 0 64
 
 # Anchor position as a FRACTION of the screen (0..1), like all HUD positions.
-# Defaults put the (sheared, wider) icon in the lower-left corner, opposite
-# side of the main-hand wield view; the hand hangs from the same anchor.
-offhand_screen_pos_x (Offhand icon X position, fraction of screen width) float 0.22 0 1
-offhand_screen_pos_y (Offhand icon Y position, fraction of screen height) float 0.88 0 1
+# Defaults mirror the main-hand wield view: the same distance from the screen
+# edge, but on the left. (These settings were renamed from ..._pos_x/..._pos_y
+# so a stale value in minetest.conf cannot override the new defaults.)
+offhand_screen_x (Offhand icon X position, fraction of screen width) float 0.15 0 1
+offhand_screen_y (Offhand icon Y position, fraction of screen height) float 0.88 0 1
 
 offhand_screen_show_icon (Show the on-screen offhand icon) bool true
 
@@ -55,11 +56,6 @@ offhand_screen_hand_size (Hand length in pixels) int 240 24 1024
 # Darken the icon/hand/counter to match the ambient light (night, caves,
 # torches). HUD overlays do not receive world lighting on their own.
 offhand_screen_light (Match the icon brightness to the ambient light) bool true
-
-# Shear the icon into the engine's wield-view tilt (top leaning toward the
-# screen centre, handle at the lower-left corner), so the left hand reads like
-# the main hand's wield model. Disable for a flat, upright icon.
-offhand_screen_wield_view (Tilt the icon like the engine's wield view) bool true
 
 # The base "offhand" mod also draws its own small icon next to the hotbar.
 # OFF by default so both stay visible; enable to hide the base one.
