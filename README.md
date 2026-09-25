@@ -101,7 +101,7 @@ las vistas. También podés desactivar el ocultado con
 | --- | --- | --- |
 | `offhand_screen_icon_size` | `380` | Tamaño del icono en píxeles. |
 | `offhand_screen_bg_padding` | `6` | Píxeles de fondo oscuro (si está activo). |
-| `offhand_screen_pos_x` | `0.16` | Posición X, fracción del ancho (0..1). |
+| `offhand_screen_pos_x` | `0.22` | Posición X, fracción del ancho (0..1). |
 | `offhand_screen_pos_y` | `0.88` | Posición Y, fracción del alto (0..1). |
 | `offhand_screen_show_icon` | `true` | Mostrar el icono de este mod. |
 | `offhand_screen_first_person_only` | `true` | Ocultar el HUD fuera de primera persona (requiere el mod cliente). |
@@ -112,7 +112,7 @@ las vistas. También podés desactivar el ocultado con
 | `offhand_screen_spin_period` | `1.6` | Segundos por vuelta completa. |
 | `offhand_screen_shadow` | `true` | Sombra detrás del icono. |
 | `offhand_screen_bob` | `true` | Balanceo al caminar. |
-| `offhand_screen_hand` | `true` | Dibujar la mano del jugador (recortada de su skin) bajo el ítem. |
+| `offhand_screen_hand` | `false` | Dibujar la mano del jugador bajo el ítem (opcional). |
 | `offhand_screen_hand_skin_layout` | `0` | Recorte de skin: `0` auto, `64` o `32`. |
 | `offhand_screen_hand_size` | `240` | Largo de la mano en píxeles. |
 | `offhand_screen_light` | `true` | Oscurecer ítem/mano/contador según la luz ambiental. |

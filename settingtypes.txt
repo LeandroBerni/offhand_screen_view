@@ -9,7 +9,7 @@ offhand_screen_bg_padding (Background padding around the icon) int 6 0 64
 # Anchor position as a FRACTION of the screen (0..1), like all HUD positions.
 # Defaults put the (sheared, wider) icon in the lower-left corner, opposite
 # side of the main-hand wield view; the hand hangs from the same anchor.
-offhand_screen_pos_x (Offhand icon X position, fraction of screen width) float 0.16 0 1
+offhand_screen_pos_x (Offhand icon X position, fraction of screen width) float 0.22 0 1
 offhand_screen_pos_y (Offhand icon Y position, fraction of screen height) float 0.88 0 1
 
 offhand_screen_show_icon (Show the on-screen offhand icon) bool true
@@ -41,7 +41,8 @@ offhand_screen_bob (Sway the icon while walking) bool true
 
 # Draw the player's own left hand (cropped live out of their skin with
 # [combine) under the item, so the item looks held in the palm.
-offhand_screen_hand (Draw the player's hand under the item) bool true
+# OFF by default: most players only want the floating item.
+offhand_screen_hand (Draw the player's hand under the item) bool false
 
 # Which arm crop to use from the skin: 0 = auto (64x32 and 64x64 crops at
 # once, whichever exists wins), 64 = only the 64x64 left arm, 32 = only the
